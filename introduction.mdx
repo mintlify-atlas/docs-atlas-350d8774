@@ -1,0 +1,126 @@
+---
+title: "Introduction"
+description: "Agencia ESA is a Java 24 Maven console application for managing ESA space agency data, built as an exam project for the 2nd-year DAM programme at IES Virgen de la Paloma."
+keywords: ["agencia esa", "java", "maven", "mysql", "dao", "dam", "ies virgen de la paloma"]
+---
+
+<Note>
+  This project is an exam deliverable for the **2nd-year DAM** (Desarrollo de Aplicaciones Multiplataforma) course at **IES Virgen de la Paloma**, Madrid. The codebase is intentionally kept minimal and dependency-light to reflect the constraints of an exam environment.
+</Note>
+
+## What is Agencia ESA?
+
+Agencia ESA is a Java 24 console application managed with Maven. It connects to a MySQL database that models ESA (European Space Agency) operations — missions, spacecraft, celestial body destinations, and crew members — and exposes three executable operations from an interactive menu.
+
+The application is not a web service or a GUI program. It runs from the command line, reads its configuration from a `.properties` file, and writes output either to the console or to files on disk depending on which operation you select.
+
+## Purpose
+
+The project was written as an exam submission for the second year of the **DAM** (Desarrollo de Aplicaciones Multiplataforma) vocational degree at **IES Virgen de la Paloma**. It demonstrates:
+
+- JDBC-based persistence using the DAO pattern with no ORM
+- File I/O for both CSV export and XML ingestion
+- Externalised configuration via a `.properties` file
+- Typed, domain-specific exception handling
+
+## Technology stack
+
+| Component | Version | Role |
+|---|---|---|
+| Java | 24 | Language and runtime |
+| Maven | 3.x | Build and dependency management |
+| MySQL | 9.5 | Relational database |
+| Jackson `XmlMapper` | 3.0.1 (`jackson-dataformat-xml`) | XML deserialisation for the operations feed |
+| JDBC (MySQL Connector/J) | — | All database access |
+
+No Spring, Hibernate, or other heavyweight framework is used. Every SQL statement is written by hand with `PreparedStatement`.
+
+## The three operations
+
+<CardGroup cols={3}>
+  <Card title="Export crew to CSV" icon="file-csv">
+    Retrieves every `Tripulante` (crew member) who has no active mission assignment and writes them to a pipe-delimited CSV file at the path configured in `aplicacion.properties`.
+  </Card>
+  <Card title="Process XML operations file" icon="file-code">
+    Parses `operaciones_esa.xml` using Jackson's `XmlMapper`, then upserts missions and crew members into the database based on the XML content.
+  </Card>
+  <Card title="Query missions by year" icon="calendar">
+    Prompts for a year, queries `T_MISION` for all missions whose start date falls within that year, and prints the results — including spacecraft and destination — to the console.
+  </Card>
+</CardGroup>
+
+At runtime the application presents a numbered menu:
+
+```
+Menú:
+  1: Almacenar en CSV los tripulantes sin misiones asignadas.
+  2: Procesar fichero operaciones_esa.xml
+  3: Imprimir en consola el listado de misiones inciadas en un año.
+```
+
+Entering `1`, `2`, or `3` executes the corresponding operation. Any other input exits.
+
+## Prerequisites
+
+Before running Agencia ESA you need:
+
+- **Java 24** (or later) installed and on your `PATH`
+- **Maven 3.x** installed and on your `PATH`
+- A **MySQL 9.5** instance reachable from your machine
+- The five database tables created (see the [database setup guide](/configuration/database-setup))
+- The `configuracion/aplicacion.properties` file populated with your JDBC URL, credentials, and file paths
+
+<Warning>
+  The application does not create tables automatically. You must run the DDL scripts before the first execution or you will receive `AgenciaEsaException` errors at startup.
+</Warning>
+
+## DAO pattern and package structure
+
+All data access is hidden behind DAO interfaces in `eu.esa.gemis.dao`. Each interface has exactly one JDBC implementation in `eu.esa.gemis.dao.impl`. Business logic in `AplicacionAgenciaESA` depends only on the interfaces, making it straightforward to swap implementations or write unit tests with mocks.
+
+```
+src/main/java/eu/esa/gemis/
+├── AplicacionAgenciaESA.java     # Entry point — menu loop and operation dispatch
+├── dao/
+│   ├── IMisionDao.java
+│   ├── ITripulanteDao.java
+│   ├── INaveDao.java
+│   └── ICuerpoCelesteDao.java
+├── dao/impl/
+│   ├── MisionDaoImpl.java
+│   ├── TripulanteDaoImpl.java
+│   ├── NaveDaoImpl.java
+│   └── CuerpoCelesteDaoImpl.java
+├── excepcion/
+│   └── AgenciaEsaException.java  # Typed domain exception
+├── gestor/
+│   ├── GestorConexion.java       # JDBC connection factory
+│   └── GestorConfiguracion.java  # Reads aplicacion.properties
+├── procesos/
+│   ├── ProcesadorTripulantesCSV.java
+│   └── ProcesadorXmlMision.java
+└── vo/
+    ├── Mision.java
+    ├── Tripulante.java
+    ├── Nave.java
+    └── CuerpoCeleste.java
+```
+
+The `vo` package holds plain Java objects (value objects / POJOs) that mirror the database tables. Jackson annotations on these classes drive XML deserialisation for operation 2.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Clone the repo, configure the database, and run the application in five steps.
+  </Card>
+  <Card title="Architecture overview" icon="sitemap" href="/architecture/overview">
+    Understand the full DAO layer, connection management, and exception strategy.
+  </Card>
+  <Card title="CSV export guide" icon="file-csv" href="/guides/csv-export">
+    Deep-dive into how unassigned crew members are queried and written to disk.
+  </Card>
+  <Card title="XML processing guide" icon="file-code" href="/guides/xml-processing">
+    How Jackson XmlMapper and the processor class update the database from the feed.
+  </Card>
+</CardGroup>

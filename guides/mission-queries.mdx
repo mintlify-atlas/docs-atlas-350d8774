@@ -1,0 +1,101 @@
+---
+title: 'Mission queries'
+description: 'Retrieve and display missions starting in a given year with formatted console output.'
+keywords: ['mission', 'query', 'year', 'sql', 'console', 'mision', 'fecha_inicio']
+---
+
+Operation **3** in the main menu queries the database for all missions whose start date falls within a given year and prints a formatted summary line for each result.
+
+## How it works
+
+<Steps>
+  <Step title="Menu selection">
+    The user selects option `3` in `AplicacionAgenciaESA`. The application calls `IMisionDAO.obtenerMisionesPorAnio(int anio)` passing the target year.
+  </Step>
+  <Step title="SQL execution">
+    `MisionDaoJDBC` prepares and executes the parameterised query below, binding the year argument to the `WHERE year(tm.fecha_inicio) = ?` clause.
+  </Step>
+  <Step title="Date formatting">
+    For each result row, the raw `fecha_inicio` value is passed to `ConversorTiposDatosYFormatos.convertirAFechaConFormato`, which returns a `dd/MM/yyyy` string for display.
+  </Step>
+  <Step title="Console output">
+    Each mission is printed using a fixed format string. The application writes directly to `System.out`.
+  </Step>
+</Steps>
+
+## SQL query
+
+`MisionDaoJDBC` executes the following `SELECT` to retrieve mission data joined with its associated spacecraft and celestial body:
+
+```sql
+SELECT tm.nombre          AS nombre_mision,
+       tm.fecha_inicio,
+       tn.codigo           AS codigo_nave,
+       tn.capacidad_tripulacion,
+       tcc.nombre          AS nombre_cuerpo_celeste,
+       tcc.tipo
+FROM   T_MISION tm
+JOIN   T_NAVE tn          ON tm.cod_nave        = tn.codigo
+JOIN   T_CUERPO_CELESTE tcc ON tm.id_cuerpo_celeste = tcc.identificador
+WHERE  year(tm.fecha_inicio) = ?
+```
+
+<Note>
+  The `year()` function is MySQL-specific. The query will not execute correctly on other database engines without modification.
+</Note>
+
+### Columns returned
+
+| Alias | Source table | Description |
+|---|---|---|
+| `nombre_mision` | `T_MISION.nombre` | Mission display name |
+| `fecha_inicio` | `T_MISION.fecha_inicio` | Start date (`DATE` type) |
+| `codigo_nave` | `T_NAVE.codigo` | Spacecraft identifier code |
+| `capacidad_tripulacion` | `T_NAVE.capacidad_tripulacion` | Maximum crew capacity |
+| `nombre_cuerpo_celeste` | `T_CUERPO_CELESTE.nombre` | Destination body name |
+| `tipo` | `T_CUERPO_CELESTE.tipo` | Body classification (e.g. `Planeta`) |
+
+## Date formatting
+
+The `fecha_inicio` column is a MySQL `DATE`, retrieved as a `java.sql.Date`. Before printing, it is converted to a human-readable string:
+
+```java
+String fechaFormateada = ConversorTiposDatosYFormatos
+        .convertirAFechaConFormato(resultSet.getDate("fecha_inicio"));
+// Returns: "02/04/2034"
+```
+
+`convertirAFechaConFormato` applies the pattern `dd/MM/yyyy` using a `SimpleDateFormat` internally.
+
+## Console output format
+
+Each mission produces a single line using the following format string:
+
+```java
+String textoImprimir =
+    "La misión %s comenzó el %s con destino a %s (%s) " +
+    "utilizando la nave %s con capacidad para %d tripulantes.";
+```
+
+Substitution order: `nombre_mision`, `fecha_inicio` (formatted), `nombre_cuerpo_celeste`, `tipo`, `codigo_nave`, `capacidad_tripulacion`.
+
+### Sample output
+
+```
+La misión Reabastecimiento Ares I comenzó el 02/04/2034 con destino a Marte (Planeta) utilizando la nave ESA-TRANS-02 con capacidad para 8 tripulantes.
+La misión Exploración Titán IV comenzó el 17/07/2034 con destino a Titán (Luna) utilizando la nave ESA-PROBE-07 con capacidad para 4 tripulantes.
+```
+
+## Hardcoded year limitation
+
+<Warning>
+  In the current implementation, `AplicacionAgenciaESA` passes the hardcoded value `2034` to `obtenerMisionesPorAnio`. The application does not prompt the user to enter a year. To query a different year, the source constant must be changed and the project recompiled.
+</Warning>
+
+The relevant call site in `AplicacionAgenciaESA` looks like:
+
+```java
+case "3" -> misionDAO.obtenerMisionesPorAnio(2034);
+```
+
+A future improvement would be to read the year from `Scanner` input or an `application.properties` entry, making the query year configurable without a recompile.

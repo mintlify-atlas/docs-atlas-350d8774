@@ -1,0 +1,284 @@
+---
+title: 'Database setup'
+description: 'Create and seed the MySQL database schema required by AgenciaESA.'
+keywords: ['mysql', 'database', 'schema', 'ddl', 'setup', 'tables']
+---
+
+AgenciaESA requires a MySQL database with five tables. This page walks you through creating the schema, running the DDL, loading sample data, and configuring the connection string.
+
+## Prerequisites
+
+- MySQL 8.0 or later
+- A user account with `CREATE`, `INSERT`, `SELECT`, `UPDATE`, and `DELETE` privileges on the target schema
+- The application configured with the correct `jdbc.*` keys in `configuracion/aplicacion.properties` (see [Application properties](/configuration/application-properties))
+
+## Create the schema
+
+<Steps>
+  <Step title="Connect to MySQL">
+    ```bash
+    mysql -u root -p
+    ```
+  </Step>
+
+  <Step title="Create the database">
+    Replace `agencia_esa_xxx` with your preferred schema name. Use the same name in `jdbc.url`.
+
+    ```sql
+    CREATE DATABASE agencia_esa_xxx
+      CHARACTER SET utf8mb4
+      COLLATE utf8mb4_unicode_ci;
+
+    USE agencia_esa_xxx;
+    ```
+  </Step>
+
+  <Step title="Create the tables">
+    Run the DDL statements in the section below in order. Foreign key relationships require `T_NAVE` and `T_CUERPO_CELESTE` to exist before `T_MISION`, and both `T_MISION` and `T_TRIPULANTE` to exist before `T_TRIPULANTE_MISION`.
+  </Step>
+
+  <Step title="Load seed data">
+    Insert the sample rows provided in the [Seed data](#seed-data) section to verify connectivity and exercise the application's queries.
+  </Step>
+</Steps>
+
+## Table DDL
+
+### T\_CUERPO\_CELESTE
+
+Stores celestial bodies (planets, moons, asteroids) that missions travel to.
+
+```sql
+CREATE TABLE T_CUERPO_CELESTE (
+    identificador          INT          NOT NULL,
+    nombre                 VARCHAR(100) NOT NULL,
+    tipo                   VARCHAR(50)  NOT NULL,
+    gravedad_superficie_ms2 DOUBLE      NOT NULL,
+    PRIMARY KEY (identificador)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### T\_NAVE
+
+Stores spacecraft available for missions.
+
+```sql
+CREATE TABLE T_NAVE (
+    codigo               VARCHAR(20)  NOT NULL,
+    nombre               VARCHAR(100) NOT NULL,
+    tipo                 VARCHAR(50)  NOT NULL,
+    capacidad_tripulacion INT         NOT NULL,
+    autonomia_dias       SMALLINT     NOT NULL,
+    PRIMARY KEY (codigo)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### T\_MISION
+
+Stores missions. References `T_NAVE` and `T_CUERPO_CELESTE`.
+
+```sql
+CREATE TABLE T_MISION (
+    identificador        INT          NOT NULL,
+    nombre               VARCHAR(150) NOT NULL,
+    cod_nave             VARCHAR(20)  NOT NULL,
+    id_cuerpo_celeste    INT          NOT NULL,
+    fecha_inicio         DATE         NOT NULL,
+    fecha_fin_estimado   DATE,
+    fecha_fin            DATE,
+    estado               VARCHAR(30)  NOT NULL,
+    objetivo_principal   TEXT,
+    presupuesto_asignado INT,
+    PRIMARY KEY (identificador),
+    CONSTRAINT fk_mision_nave
+        FOREIGN KEY (cod_nave)
+        REFERENCES T_NAVE (codigo),
+    CONSTRAINT fk_mision_cuerpo
+        FOREIGN KEY (id_cuerpo_celeste)
+        REFERENCES T_CUERPO_CELESTE (identificador)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+<Note>
+  The UPDATE statement used by `MisionDaoJDBC` identifies a mission by the combination of `cod_nave`, the name of the celestial body (resolved via a subquery on `T_CUERPO_CELESTE`), and `fecha_inicio` — not by `identificador`. Ensure those three values are unique per mission.
+</Note>
+
+### T\_TRIPULANTE
+
+Stores crew members.
+
+```sql
+CREATE TABLE T_TRIPULANTE (
+    numero_tripulante    INT          NOT NULL,
+    nombre               VARCHAR(100) NOT NULL,
+    apellidos            VARCHAR(150) NOT NULL,
+    identificador_esa    INT          NOT NULL,
+    nivel_experiencia    INT          NOT NULL,
+    especialidad         VARCHAR(100) NOT NULL,
+    fecha_ingreso_esa    DATE         NOT NULL,
+    PRIMARY KEY (numero_tripulante),
+    UNIQUE KEY uq_identificador_esa (identificador_esa)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### T\_TRIPULANTE\_MISION
+
+Junction table that assigns crew members to missions (many-to-many).
+
+```sql
+CREATE TABLE T_TRIPULANTE_MISION (
+    id_mision     INT NOT NULL,
+    id_tripulante INT NOT NULL,
+    PRIMARY KEY (id_mision, id_tripulante),
+    CONSTRAINT fk_tm_mision
+        FOREIGN KEY (id_mision)
+        REFERENCES T_MISION (identificador),
+    CONSTRAINT fk_tm_tripulante
+        FOREIGN KEY (id_tripulante)
+        REFERENCES T_TRIPULANTE (numero_tripulante)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+## Seed data
+
+The following rows mirror the mission data defined in `ficheros-datos/operaciones_esa.xml` and provide a working baseline for all application queries.
+
+```sql
+-- Celestial bodies
+INSERT INTO T_CUERPO_CELESTE VALUES
+  (1, 'Marte',   'Planeta',   3.72),
+  (2, 'Luna',    'Satelite',  1.62),
+  (3, 'Europa',  'Satelite',  1.31),
+  (4, 'Titan',   'Satelite',  1.35),
+  (5, 'Mercurio','Planeta',   3.70);
+
+-- Spacecraft
+INSERT INTO T_NAVE VALUES
+  ('ARES-I',    'Ares I',         'Transporte', 6,  180),
+  ('HERMES-II', 'Hermes II',      'Explorador', 4,  365),
+  ('ATLAS-V',   'Atlas V',        'Carga',      2,   90),
+  ('ORION-III', 'Orion III',      'Transporte', 8,  270),
+  ('VOYAGER-X', 'Voyager X',      'Cientifico', 3,  730);
+
+-- Missions
+INSERT INTO T_MISION
+    (identificador, nombre, cod_nave, id_cuerpo_celeste,
+     fecha_inicio, fecha_fin_estimado, fecha_fin,
+     estado, objetivo_principal, presupuesto_asignado)
+VALUES
+  (1, 'Operacion Aurora',    'ARES-I',    1, '2025-03-15', '2025-09-15', NULL,
+   'EN_CURSO',   'Establecer base en Marte',              5000000),
+  (2, 'Mision Selene',       'HERMES-II', 2, '2025-01-10', '2025-04-10', '2025-04-08',
+   'COMPLETADA', 'Cartografia lunar',                     2000000),
+  (3, 'Proyecto Europa',     'VOYAGER-X', 3, '2025-06-01', '2026-06-01', NULL,
+   'PLANIFICADA','Busqueda de vida bajo el hielo',         8000000),
+  (4, 'Titan Descent',       'ORION-III', 4, '2025-11-20', '2026-05-20', NULL,
+   'PLANIFICADA','Analisis atmosfera de Titan',            6500000),
+  (5, 'Mercurio Recon',      'ATLAS-V',   5, '2024-07-04', '2024-10-04', '2024-10-01',
+   'COMPLETADA', 'Reconocimiento superficial',             1500000);
+
+-- Crew members
+INSERT INTO T_TRIPULANTE VALUES
+  (1, 'Elena',   'Garcia Lopez',    1001, 5, 'Piloto',     '2018-09-01'),
+  (2, 'Marcos',  'Perez Ruiz',      1002, 3, 'Ingeniero',  '2020-03-15'),
+  (3, 'Sofia',   'Martinez Gil',    1003, 4, 'Cientifica', '2019-06-20'),
+  (4, 'Andres',  'Fernandez Ramos', 1004, 2, 'Medico',     '2021-01-10'),
+  (5, 'Lucia',   'Torres Vega',     1005, 5, 'Piloto',     '2017-11-05'),
+  (6, 'Carlos',  'Jimenez Blanco',  1006, 1, 'Tecnico',    '2022-07-18');
+
+-- Crew assignments
+INSERT INTO T_TRIPULANTE_MISION VALUES
+  (1, 1), (1, 2), (1, 3),
+  (2, 1), (2, 4),
+  (3, 3), (3, 5),
+  (4, 5), (4, 6);
+```
+
+## Connection string format
+
+The `jdbc.url` property must follow this format:
+
+```
+jdbc:mysql://<host>:<port>/<schema>[?<options>]
+```
+
+| Segment   | Description                                              | Example              |
+|-----------|----------------------------------------------------------|----------------------|
+| `<host>`  | Hostname or IP address of the MySQL server               | `192.168.1.36`       |
+| `<port>`  | MySQL port (default `3306`)                              | `3306`               |
+| `<schema>`| Name of the database created in the setup step           | `agencia_esa_xxx`    |
+| `<options>`| Optional JDBC parameters (see tips below)               | `?useSSL=false`      |
+
+### Recommended connection options
+
+Append these parameters to the URL when connecting to a local development server:
+
+```properties
+jdbc.url=jdbc:mysql://192.168.1.36:3306/agencia_esa_xxx?useSSL=false&serverTimezone=Europe/Madrid&characterEncoding=utf8mb4
+```
+
+<Tip>
+  Setting `serverTimezone` avoids `SQLException: The server time zone value is unrecognized` errors that occur when MySQL's `time_zone` system variable is set to `SYSTEM` and the JVM cannot map it.
+</Tip>
+
+## Common setup issues
+
+<AccordionGroup>
+  <Accordion title="Wrong character set — data stored with incorrect encoding">
+    If the schema or tables were created without specifying `utf8mb4`, accented characters and special symbols may be stored or retrieved incorrectly.
+
+    **Fix:** Re-create the schema with `CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci` as shown in the DDL above, or alter existing tables:
+
+    ```sql
+    ALTER DATABASE agencia_esa_xxx
+      CHARACTER SET utf8mb4
+      COLLATE utf8mb4_unicode_ci;
+
+    ALTER TABLE T_TRIPULANTE
+      CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    ```
+  </Accordion>
+
+  <Accordion title="Missing user grants — Access denied for user">
+    The MySQL user configured in `jdbc.usuario` must have explicit grants on the target schema.
+
+    ```sql
+    -- Grant all required privileges
+    GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP
+      ON agencia_esa_xxx.*
+      TO 'root'@'%'
+      IDENTIFIED BY 'mysql_123';
+
+    FLUSH PRIVILEGES;
+    ```
+
+    <Warning>
+      Using the `root` account with a wildcard host (`%`) is acceptable for local development only. Use a dedicated restricted account in any shared or production environment.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Connector/J not on the classpath — No suitable driver found">
+    The MySQL JDBC driver (Connector/J) must be declared as a Maven dependency. Verify that `pom.xml` includes:
+
+    ```xml
+    <dependency>
+      <groupId>com.mysql</groupId>
+      <artifactId>mysql-connector-j</artifactId>
+      <version>8.3.0</version>
+    </dependency>
+    ```
+
+    Run `mvn dependency:resolve` after adding the dependency.
+  </Accordion>
+
+  <Accordion title="Foreign key errors when inserting missions">
+    `T_MISION` references `T_NAVE` and `T_CUERPO_CELESTE`. Inserting a mission row before the referenced nave or cuerpo celeste row exists will raise a constraint violation.
+
+    **Fix:** Always insert in this order:
+    1. `T_CUERPO_CELESTE`
+    2. `T_NAVE`
+    3. `T_MISION`
+    4. `T_TRIPULANTE`
+    5. `T_TRIPULANTE_MISION`
+  </Accordion>
+</AccordionGroup>

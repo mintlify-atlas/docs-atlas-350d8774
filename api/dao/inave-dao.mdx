@@ -1,0 +1,202 @@
+---
+title: 'INaveDAO'
+description: 'DAO interface for spacecraft (Nave) persistence operations in the Agencia ESA system.'
+keywords: ['INaveDAO', 'NaveDAO', 'DAO', 'Nave', 'Java', 'JDBC']
+---
+
+## Overview
+
+`INaveDAO` defines the persistence contract for `Nave` (spacecraft) entities. The JDBC implementation queries the `T_NAVE` table.
+
+| Property | Value |
+|---|---|
+| Interface | `eu.esa.gemis.dao.INaveDAO` |
+| Primary table | `T_NAVE` |
+| Checked exception | `eu.esa.gemis.excepcion.AgenciaEsaException` |
+
+<Note>
+  The method signatures below are derived from the interface source file and standard DAO conventions used throughout the Agencia ESA codebase. The `T_NAVE` table columns include `codigo` (primary key), `nombre`, `capacidad_tripulacion`, `tipo`, and `estado`. Refer to the source file `eu/esa/gemis/dao/INaveDAO.java` for the authoritative list.
+</Note>
+
+---
+
+## `T_NAVE` table structure
+
+| Column | Type | Description |
+|---|---|---|
+| `codigo` | `VARCHAR` | Primary key — spacecraft code |
+| `nombre` | `VARCHAR` | Spacecraft name |
+| `capacidad_tripulacion` | `INT` | Maximum crew capacity |
+| `tipo` | `VARCHAR` | Spacecraft type/class |
+| `estado` | `VARCHAR` | Operational status |
+
+---
+
+## Expected methods
+
+### `obtenerNaves`
+
+Retrieves all spacecraft records from `T_NAVE`.
+
+**Signature**
+
+```java
+List<Nave> obtenerNaves() throws AgenciaEsaException;
+```
+
+#### Return value
+
+A `List<Nave>` containing all spacecraft. Returns an empty list when the table has no rows.
+
+#### Exceptions
+
+<ResponseField name="AgenciaEsaException" type="checked exception">
+  Thrown on any database failure.
+  <Expandable title="Error codes">
+    <ResponseField name="ERROR_CONSULTA (2)" type="int">
+      SQL query execution failed.
+    </ResponseField>
+    <ResponseField name="ERROR_GESTION_CONEXION (1)" type="int">
+      Could not obtain or release a database connection.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### `obtenerNavePorCodigo`
+
+Retrieves a single spacecraft by its primary key code.
+
+**Signature**
+
+```java
+Nave obtenerNavePorCodigo(String codigo) throws AgenciaEsaException;
+```
+
+#### Parameters
+
+<ParamField path="codigo" type="String" required>
+  Spacecraft code. Corresponds to the `codigo` primary key column in `T_NAVE`.
+</ParamField>
+
+#### Return value
+
+The matching `Nave` instance, or `null` if no spacecraft with that code exists.
+
+#### Exceptions
+
+<ResponseField name="AgenciaEsaException" type="checked exception">
+  Thrown on any database failure.
+  <Expandable title="Error codes">
+    <ResponseField name="ERROR_CONSULTA (2)" type="int">
+      SQL query execution failed.
+    </ResponseField>
+    <ResponseField name="ERROR_GESTION_CONEXION (1)" type="int">
+      Could not obtain or release a database connection.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### `insertarNave`
+
+Persists a new spacecraft record in `T_NAVE`.
+
+**Signature**
+
+```java
+void insertarNave(Nave nave) throws AgenciaEsaException;
+```
+
+#### Parameters
+
+<ParamField path="nave" type="Nave" required>
+  Fully populated `Nave` value object. The `codigo` field must be unique.
+  <Expandable title="Fields">
+    <ResponseField name="codigo" type="String">
+      Spacecraft code (primary key). Must not already exist in `T_NAVE`.
+    </ResponseField>
+    <ResponseField name="nombre" type="String">
+      Spacecraft name.
+    </ResponseField>
+    <ResponseField name="capacidadTripulacion" type="int">
+      Maximum crew capacity.
+    </ResponseField>
+    <ResponseField name="tipo" type="String">
+      Spacecraft type or class.
+    </ResponseField>
+    <ResponseField name="estado" type="String">
+      Operational status.
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+#### Return value
+
+`void`. The method completes silently on success.
+
+#### Exceptions
+
+<ResponseField name="AgenciaEsaException" type="checked exception">
+  Thrown on any database failure during the insert.
+  <Expandable title="Error codes">
+    <ResponseField name="ERROR_INSERCION (3)" type="int">
+      The `INSERT` statement failed (e.g. duplicate `codigo`).
+    </ResponseField>
+    <ResponseField name="ERROR_GESTION_CONEXION (1)" type="int">
+      Could not obtain or release a database connection.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### `actualizarNave`
+
+Updates an existing spacecraft record identified by its `codigo`.
+
+**Signature**
+
+```java
+void actualizarNave(Nave nave) throws AgenciaEsaException;
+```
+
+#### Parameters
+
+<ParamField path="nave" type="Nave" required>
+  `Nave` value object carrying the `codigo` key and the new field values to persist.
+</ParamField>
+
+#### Return value
+
+`void`. The method completes silently on success.
+
+#### Exceptions
+
+<ResponseField name="AgenciaEsaException" type="checked exception">
+  Thrown on any database failure during the update.
+  <Expandable title="Error codes">
+    <ResponseField name="ERROR_ACTUALIZACION (4)" type="int">
+      The `UPDATE` statement failed.
+    </ResponseField>
+    <ResponseField name="ERROR_GESTION_CONEXION (1)" type="int">
+      Could not obtain or release a database connection.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Exception reference
+
+All `AgenciaEsaException` error codes relevant to this interface:
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `ERROR_GENERAL` | 0 | Unclassified error |
+| `ERROR_GESTION_CONEXION` | 1 | Connection management failure |
+| `ERROR_CONSULTA` | 2 | Query execution failure |
+| `ERROR_INSERCION` | 3 | Insert execution failure |
+| `ERROR_ACTUALIZACION` | 4 | Update execution failure |

@@ -1,0 +1,188 @@
+---
+title: 'IMisionDAO'
+description: 'DAO interface for mission (Mision) persistence operations in the Agencia ESA system.'
+keywords: ['IMisionDAO', 'MisionDaoJDBC', 'DAO', 'Mision', 'Java', 'JDBC']
+---
+
+## Overview
+
+`IMisionDAO` defines the persistence contract for `Mision` entities. The single JDBC implementation executes parameterized SQL against the `T_MISION`, `T_NAVE`, and `T_CUERPO_CELESTE` tables.
+
+| Property | Value |
+|---|---|
+| Interface | `eu.esa.gemis.dao.IMisionDAO` |
+| Implementation | `eu.esa.gemis.dao.impl.MisionDaoJDBC` |
+| Checked exception | `eu.esa.gemis.excepcion.AgenciaEsaException` |
+
+---
+
+## Interface source
+
+```java IMisionDAO.java
+package eu.esa.gemis.dao;
+
+import java.util.List;
+import eu.esa.gemis.excepcion.AgenciaEsaException;
+import eu.esa.gemis.vo.Mision;
+
+public interface IMisionDAO {
+    List<Mision> obtenerMisionesIniciadasEnAnyo(int anyo) throws AgenciaEsaException;
+    void actualizarMisionPorNaveCuerpoFecha(Mision mision) throws AgenciaEsaException;
+}
+```
+
+---
+
+## Methods
+
+### `obtenerMisionesIniciadasEnAnyo`
+
+Retrieves all missions whose `fecha_inicio` falls within the given calendar year. The result set joins `T_NAVE` and `T_CUERPO_CELESTE` so each returned `Mision` object is fully populated with spacecraft and celestial-body data.
+
+**Signature**
+
+```java
+List<Mision> obtenerMisionesIniciadasEnAnyo(int anyo) throws AgenciaEsaException;
+```
+
+#### Parameters
+
+<ParamField path="anyo" type="int" required>
+  Four-digit calendar year used to filter missions by their start date (e.g. `2024`). Passed as the JDBC `?` placeholder in the `WHERE year(fecha_inicio) = ?` clause.
+</ParamField>
+
+#### Return value
+
+A `List<Mision>` containing every mission that started in the specified year, ordered by the natural result-set order from the database. Returns an empty list when no missions match.
+
+#### Exceptions
+
+<ResponseField name="AgenciaEsaException" type="checked exception">
+  Thrown by the JDBC implementation on any database failure.
+  <Expandable title="Error codes">
+    <ResponseField name="ERROR_CONSULTA (2)" type="int">
+      SQL query execution failed (e.g. connection lost, invalid SQL state).
+    </ResponseField>
+    <ResponseField name="ERROR_GESTION_CONEXION (1)" type="int">
+      Could not obtain or release a database connection.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### SQL executed by `MisionDaoJDBC`
+
+```sql
+SELECT tm.nombre          AS nombre_mision,
+       tm.fecha_inicio,
+       tn.codigo           AS codigo_nave,
+       tn.capacidad_tripulacion,
+       tcc.nombre          AS nombre_cuerpo_celeste,
+       tcc.tipo
+FROM   T_MISION tm
+       JOIN T_NAVE          tn  ON tm.cod_nave          = tn.codigo
+       JOIN T_CUERPO_CELESTE tcc ON tm.id_cuerpo_celeste = tcc.identificador
+WHERE  year(tm.fecha_inicio) = ?
+```
+
+---
+
+### `actualizarMisionPorNaveCuerpoFecha`
+
+Updates a mission row identified by its composite natural key: spacecraft code (`cod_nave`), celestial body name (resolved via a correlated subquery on `T_CUERPO_CELESTE`), and start date (`fecha_inicio`). All mutable fields on the `Mision` value object are written in a single `UPDATE` statement.
+
+**Signature**
+
+```java
+void actualizarMisionPorNaveCuerpoFecha(Mision mision) throws AgenciaEsaException;
+```
+
+#### Parameters
+
+<ParamField path="mision" type="Mision" required>
+  Value object carrying both the natural key fields used in the `WHERE` clause and the new field values to persist.
+  <Expandable title="Key fields (WHERE clause)">
+    <ResponseField name="codNave" type="String">
+      Spacecraft code. Maps to `T_MISION.cod_nave`.
+    </ResponseField>
+    <ResponseField name="nombreCuerpoCeleste" type="String">
+      Celestial body name. Resolved to `id_cuerpo_celeste` via a subquery on `T_CUERPO_CELESTE`.
+    </ResponseField>
+    <ResponseField name="fechaInicio" type="Date">
+      Mission start date. Maps to `T_MISION.fecha_inicio`.
+    </ResponseField>
+  </Expandable>
+  <Expandable title="Updated fields (SET clause)">
+    <ResponseField name="nombre" type="String">
+      Mission name.
+    </ResponseField>
+    <ResponseField name="fechaFinEstimado" type="Date">
+      Estimated end date.
+    </ResponseField>
+    <ResponseField name="fechaFin" type="Date">
+      Actual end date.
+    </ResponseField>
+    <ResponseField name="estado" type="String">
+      Mission status.
+    </ResponseField>
+    <ResponseField name="objetivoPrincipal" type="String">
+      Primary mission objective.
+    </ResponseField>
+    <ResponseField name="presupuestoAsignado" type="BigDecimal">
+      Assigned budget.
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+#### Return value
+
+`void`. The method completes silently on success.
+
+#### Exceptions
+
+<ResponseField name="AgenciaEsaException" type="checked exception">
+  Thrown by the JDBC implementation on any database failure.
+  <Expandable title="Error codes">
+    <ResponseField name="ERROR_ACTUALIZACION (4)" type="int">
+      The `UPDATE` statement failed or affected zero rows.
+    </ResponseField>
+    <ResponseField name="ERROR_GESTION_CONEXION (1)" type="int">
+      Could not obtain or release a database connection.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Warning>
+  The composite key `(cod_nave, nombre_cuerpo_celeste, fecha_inicio)` must uniquely identify a row in `T_MISION`. If no row matches, the update is silently ignored at the SQL level; the implementation may or may not surface this as an exception depending on affected-row validation.
+</Warning>
+
+#### SQL executed by `MisionDaoJDBC`
+
+```sql
+UPDATE T_MISION
+SET    nombre               = ?,
+       fecha_fin_estimado   = ?,
+       fecha_fin            = ?,
+       estado               = ?,
+       objetivo_principal   = ?,
+       presupuesto_asignado = ?
+WHERE  cod_nave          = ?
+  AND  id_cuerpo_celeste = (
+           SELECT tcc.identificador
+           FROM   T_CUERPO_CELESTE tcc
+           WHERE  tcc.nombre = ?
+       )
+  AND  fecha_inicio      = ?
+```
+
+---
+
+## Exception reference
+
+All `AgenciaEsaException` error codes relevant to this interface:
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `ERROR_GENERAL` | 0 | Unclassified error |
+| `ERROR_GESTION_CONEXION` | 1 | Connection management failure |
+| `ERROR_CONSULTA` | 2 | Query execution failure |
+| `ERROR_ACTUALIZACION` | 4 | Update execution failure |

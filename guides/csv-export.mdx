@@ -1,0 +1,114 @@
+---
+title: 'CSV export'
+description: 'Export unassigned crew members to a pipe-delimited CSV file from the main menu.'
+keywords: ['csv', 'export', 'crew', 'tripulante', 'unassigned', 'mission']
+---
+
+Operation **1** in the main menu retrieves every crew member with no active mission assignment from the database and writes them to a pipe-delimited CSV file on disk.
+
+## How it works
+
+<Steps>
+  <Step title="Menu selection">
+    The user selects option `1` in `AplicacionAgenciaESA`. The application delegates to `ProcesadorTripulantesCSV.almacenarTripulantesSinMisionEnFicheroCSV()`.
+  </Step>
+  <Step title="Database query">
+    `TripulanteDaoJDBC` implements `ITripulanteDAO.obtenerTripulantesSinMision()`, which runs a `SELECT` that returns only crew members whose `id_mision` column is `NULL` (no mission assignment).
+  </Step>
+  <Step title="File write">
+    A `BufferedWriter` opens the file at the path defined by `ruta.fichero.csv`. The configured header line is written first, followed by one row per crew member using the configured separator.
+  </Step>
+  <Step title="Row formatting">
+    Each `Tripulante` is serialised in field order: `numeroTripulante`, `nombre`, `apellidos`, `identificadorEsa`, `especialidad`, `fechaIngresoEsa`.
+  </Step>
+</Steps>
+
+## Configuration
+
+All three properties are read at class-load time via `GestorFicheroConfiguracion`.
+
+```properties application.properties
+# Absolute or relative path to the output file
+ruta.fichero.csv=salida/tripulantes_sin_mision.csv
+
+# Header row written as the first line of every export
+csv.cabecera=NUM_TRIPULANTE|NOMBRE|APELLIDOS|IDENT_ESA|ESPECIALIDAD|FECHA_INGRESO
+
+# Field separator used between every column value
+csv.separador=|
+```
+
+<Note>
+  The separator and header are read once when the JVM loads `ProcesadorTripulantesCSV`. Changing them at runtime requires a restart.
+</Note>
+
+## CSV format
+
+The file uses **pipe (`|`) delimiters** with a header row. No quoting is applied to field values.
+
+```csv tripulantes_sin_mision.csv
+NUM_TRIPULANTE|NOMBRE|APELLIDOS|IDENT_ESA|ESPECIALIDAD|FECHA_INGRESO
+1|Carlos|Mendoza Ruiz|2001|Piloto Estelar|2028-03-15
+4|Yuki|Tanaka Oshiro|2004|Bióloga Espacial|2030-07-22
+7|Omar|Farouk Al-Said|2007|Especialista EVA|2031-11-05
+```
+
+### Column definitions
+
+| Column | Java getter | Description |
+|---|---|---|
+| `NUM_TRIPULANTE` | `getNumeroTripulante()` | Numeric primary key in `T_TRIPULANTE` |
+| `NOMBRE` | `getNombre()` | Given name |
+| `APELLIDOS` | `getApellidos()` | Family name(s) |
+| `IDENT_ESA` | `getIdentificadorEsa()` | ESA-assigned identifier (e.g. `2001`) |
+| `ESPECIALIDAD` | `getEspecialidad()` | Role specialisation |
+| `FECHA_INGRESO` | `getFechaIngresoEsa()` | Date joined ESA (`yyyy-MM-dd`) |
+
+## Source code
+
+```java ProcesadorTripulantesCSV.java
+public class ProcesadorTripulantesCSV {
+    private static final String SEPARADOR_CSV =
+            GestorFicheroConfiguracion.obtenerValor("csv.separador");
+    private static final String CABECERA_CSV =
+            GestorFicheroConfiguracion.obtenerValor("csv.cabecera");
+    private String rutaFicheroCSV =
+            GestorFicheroConfiguracion.obtenerValor("ruta.fichero.csv");
+
+    public void almacenarTripulantesSinMisionEnFicheroCSV() throws AgenciaEsaException {
+        File ficheroCSV = new File(rutaFicheroCSV);
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(ficheroCSV))) {
+            writer.write(CABECERA_CSV);
+            writer.newLine();
+            ITripulanteDAO iTripulanteDAO = new TripulanteDaoJDBC();
+            List<Tripulante> listaTripulantesSinMision =
+                    iTripulanteDAO.obtenerTripulantesSinMision();
+            for (Tripulante tripulante : listaTripulantesSinMision) {
+                writer.write(
+                    tripulante.getNumeroTripulante() + SEPARADOR_CSV +
+                    tripulante.getNombre()           + SEPARADOR_CSV +
+                    tripulante.getApellidos()        + SEPARADOR_CSV +
+                    tripulante.getIdentificadorEsa() + SEPARADOR_CSV +
+                    tripulante.getEspecialidad()     + SEPARADOR_CSV +
+                    tripulante.getFechaIngresoEsa()
+                );
+                writer.newLine();
+            }
+        } catch (IOException e) {
+            System.out.println("Error E/S: " + e);
+        }
+    }
+}
+```
+
+## Error handling
+
+<Warning>
+  `IOException` is caught and printed to stdout but does **not** re-throw `AgenciaEsaException`. If the output directory does not exist or the JVM lacks write permission, the operation silently fails after printing the error. Ensure the parent directory of `ruta.fichero.csv` exists before running the application.
+</Warning>
+
+Common failure causes:
+
+- **Directory missing** — create the parent directory (e.g. `salida/`) before the first run.
+- **Permission denied** — the process user must have write access to the target path.
+- **Empty result** — if all crew members are assigned to missions, the file is written with only the header row. This is normal behaviour, not an error.

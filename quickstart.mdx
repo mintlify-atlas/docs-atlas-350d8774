@@ -1,80 +1,242 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Get Agencia ESA built, configured, and running against a MySQL database in five steps."
+keywords: ["quickstart", "setup", "java", "maven", "mysql", "agencia esa"]
 ---
 
-## Get started in three steps
+<Steps>
 
-Get your documentation site running locally and make your first customization.
+<Step title="Verify prerequisites">
 
-### Step 1: Set up your local environment
+Confirm the following tools are installed before continuing.
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+```bash
+java -version      # must report Java 24 or later
+mvn -version       # any Maven 3.x release
+mysql --version    # MySQL 9.5 server reachable
+```
 
-### Step 2: Deploy your changes
+<Warning>
+  Java 24 is required. The project uses `pom.xml` source and target settings of `24`. Running on an earlier JDK will fail during compilation or at runtime.
+</Warning>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+</Step>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+<Step title="Clone and build">
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+Clone the repository and compile the project with Maven.
 
-### Step 3: Go live
+```bash
+git clone https://github.com/profies/agencia_esa_examen.git
+cd agencia_esa_examen
+mvn clean package -DskipTests
+```
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+Maven resolves the following key dependency declared in `pom.xml`:
+
+```xml pom.xml (excerpt)
+<dependency>
+    <groupId>com.fasterxml.jackson.dataformat</groupId>
+    <artifactId>jackson-dataformat-xml</artifactId>
+    <version>3.0.1</version>
+</dependency>
+```
+
+After a successful build you will find the compiled JAR under `target/`.
+
+<Tip>
+  Run `mvn dependency:tree` to confirm Jackson XmlMapper and the MySQL Connector/J driver are both resolved before proceeding.
+</Tip>
+
+</Step>
+
+<Step title="Configure aplicacion.properties">
+
+Open `configuracion/aplicacion.properties` and fill in the values for your environment. The file ships with the following keys:
+
+```properties configuracion/aplicacion.properties
+jdbc.url=jdbc:mysql://192.168.1.36:3306/agencia_esa_xxx
+jdbc.usuario=root
+jdbc.password=mysql_123
+ruta.fichero.csv=ficheros-datos/tripulantes_sinmision.csv
+csv.cabecera=num_tripulante|nombre|apellidos|id_esa|especialidad|fecha_ingreso
+csv.separador=|
+ruta.fichero.xml=ficheros-datos/operaciones_esa.xml
+```
+
+Replace the JDBC URL, username, and password with your own MySQL instance details.
+
+| Key | Description |
+|---|---|
+| `jdbc.url` | Full JDBC connection string including host, port, and database name |
+| `jdbc.usuario` | MySQL username |
+| `jdbc.password` | MySQL password |
+| `ruta.fichero.csv` | Output path for the unassigned-crew CSV export (operation 1) |
+| `csv.cabecera` | Pipe-separated column headers written as the first CSV line |
+| `csv.separador` | Field delimiter character — `\|` by default |
+| `ruta.fichero.xml` | Input path for the ESA operations XML feed (operation 2) |
+
+<Warning>
+  The application reads this file at startup using `GestorConfiguracion`. If the file is missing or any required key is absent, an `AgenciaEsaException` is thrown before the menu appears.
+</Warning>
+
+</Step>
+
+<Step title="Set up the database schema">
+
+Create the `agencia_esa_xxx` database and run the DDL below to create all five tables.
+
+```sql
+CREATE DATABASE IF NOT EXISTS agencia_esa_xxx
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+USE agencia_esa_xxx;
+
+CREATE TABLE T_CUERPO_CELESTE (
+    id_cuerpo_celeste   INT          NOT NULL AUTO_INCREMENT,
+    nombre              VARCHAR(100) NOT NULL,
+    tipo                VARCHAR(50),
+    gravedad_superficie DOUBLE,
+    PRIMARY KEY (id_cuerpo_celeste)
+);
+
+CREATE TABLE T_NAVE (
+    cod_nave        VARCHAR(20)  NOT NULL,
+    nombre          VARCHAR(100),
+    tipo            VARCHAR(50),
+    capacidad_crew  INT,
+    PRIMARY KEY (cod_nave)
+);
+
+CREATE TABLE T_MISION (
+    id_mision           INT          NOT NULL AUTO_INCREMENT,
+    nombre              VARCHAR(150) NOT NULL,
+    fecha_inicio        DATE,
+    fecha_fin           DATE,
+    estado              VARCHAR(30),
+    presupuesto         DECIMAL(15,2),
+    objetivo            TEXT,
+    cod_nave            VARCHAR(20),
+    id_cuerpo_celeste   INT,
+    PRIMARY KEY (id_mision),
+    FOREIGN KEY (cod_nave)          REFERENCES T_NAVE(cod_nave),
+    FOREIGN KEY (id_cuerpo_celeste) REFERENCES T_CUERPO_CELESTE(id_cuerpo_celeste)
+);
+
+CREATE TABLE T_TRIPULANTE (
+    num_tripulante  INT          NOT NULL AUTO_INCREMENT,
+    nombre          VARCHAR(100) NOT NULL,
+    apellidos       VARCHAR(150),
+    id_esa          VARCHAR(20)  UNIQUE,
+    especialidad    VARCHAR(80),
+    fecha_ingreso   DATE,
+    nivel_experiencia INT,
+    PRIMARY KEY (num_tripulante)
+);
+
+CREATE TABLE T_TRIPULANTE_MISION (
+    num_tripulante  INT NOT NULL,
+    id_mision       INT NOT NULL,
+    rol             VARCHAR(80),
+    PRIMARY KEY (num_tripulante, id_mision),
+    FOREIGN KEY (num_tripulante) REFERENCES T_TRIPULANTE(num_tripulante),
+    FOREIGN KEY (id_mision)      REFERENCES T_MISION(id_mision)
+);
+```
+
+Load any seed data your exam scenario requires before running the application.
+
+</Step>
+
+<Step title="Run the application and select an operation">
+
+Launch the application with Maven or directly with `java`.
+
+<CodeGroup>
+
+```bash Maven exec plugin
+mvn exec:java -Dexec.mainClass="eu.esa.gemis.AplicacionAgenciaESA"
+```
+
+```bash java -cp
+java -cp target/agencia_esa-1.0-SNAPSHOT.jar eu.esa.gemis.AplicacionAgenciaESA
+```
+
+</CodeGroup>
+
+At startup the application prints the menu and waits for input:
+
+```
+Menú:
+  1: Almacenar en CSV los tripulantes sin misiones asignadas.
+  2: Procesar fichero operaciones_esa.xml
+  3: Imprimir en consola el listado de misiones inciadas en un año.
+```
+
+Enter the number for the operation you want to run.
+
+**Operation 1 — Export unassigned crew to CSV**
+
+Type `1` and press Enter. The application queries `T_TRIPULANTE` for crew members with no rows in `T_TRIPULANTE_MISION` and writes them to the path configured in `ruta.fichero.csv`.
+
+```
+> 1
+Exportando tripulantes sin misión a CSV...
+Fichero generado: ficheros-datos/tripulantes_sinmision.csv
+```
+
+The output file will look like:
+
+```
+num_tripulante|nombre|apellidos|id_esa|especialidad|fecha_ingreso
+3|Ana|García López|ESA-0042|Piloto|2019-03-15
+7|Carlos|Muñoz Rivas|ESA-0089|Ingeniero de sistemas|2021-07-01
+```
+
+**Operation 2 — Process XML operations file**
+
+Type `2` and press Enter. The application uses Jackson `XmlMapper` to deserialise `operaciones_esa.xml`, then applies the updates (inserts or updates missions and crew) transactionally via the DAO layer.
+
+```
+> 2
+Procesando fichero XML: ficheros-datos/operaciones_esa.xml
+Operaciones procesadas correctamente.
+```
+
+**Operation 3 — Query missions by year**
+
+Type `3` and press Enter. The application asks for a year, queries `T_MISION` by `fecha_inicio`, and prints each matching mission.
+
+```
+> 3
+Introduce el año: 2024
+
+Misiones iniciadas en 2024:
+  - Artemis IV  | Nave: ORS-001 | Destino: Luna    | Inicio: 2024-02-10
+  - Hermes VII  | Nave: ORS-003 | Destino: Marte   | Inicio: 2024-09-22
+```
+
+<Tip>
+  Any value other than `1`, `2`, or `3` exits the application. This is the intended behaviour — the `switch` in `ejecutarFuncionalidades` has no default branch that loops.
+</Tip>
+
+</Step>
+
+</Steps>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Architecture overview" icon="sitemap" href="/architecture/overview">
+    Understand the DAO interfaces, JDBC implementations, and connection management.
+  </Card>
+  <Card title="CSV export guide" icon="file-csv" href="/guides/csv-export">
+    Full reference for `ProcesadorTripulantesCSV` and configurable output format.
+  </Card>
+  <Card title="XML processing guide" icon="file-code" href="/guides/xml-processing">
+    How `ProcesadorXmlMision` uses Jackson XmlMapper to update the database.
+  </Card>
+  <Card title="Application properties" icon="gear" href="/configuration/application-properties">
+    Complete reference for every key in `configuracion/aplicacion.properties`.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

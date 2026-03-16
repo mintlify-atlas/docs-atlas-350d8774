@@ -1,97 +1,90 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Agencia ESA"
+description: "Java console application for managing ESA space agency operations — missions, crew, spacecraft, and celestial bodies via JDBC, CSV, and XML."
 ---
 
-## Setting up
-
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Build and run the application against a MySQL database in minutes.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Architecture" icon="sitemap" href="/architecture/overview">
+    Understand the DAO pattern, value objects, and application layers.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Core Features" icon="list-check" href="/guides/csv-export">
+    Export crew to CSV, process XML operations files, and query missions.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="API Reference" icon="code" href="/api/dao/imision-dao">
+    Full reference for all DAO interfaces, value objects, and processors.
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## What is Agencia ESA?
 
-Everything you need to create world-class documentation.
+Agencia ESA (`AgenciaESA`) is a Java 24 / Maven console application built for the 2nd-year DAM (Development of Multiplatform Applications) exam at IES Virgen de la Paloma. It manages ESA space agency data stored in a MySQL database, and supports three core operations:
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+<Steps>
+  <Step title="Export unassigned crew to CSV">
+    Retrieve every `Tripulante` who has no active mission assignment and write their details to a pipe-delimited CSV file.
+  </Step>
+  <Step title="Process XML operations file">
+    Parse `operaciones_esa.xml` using Jackson's `XmlMapper`, update existing missions in the database, and insert or update crew members referenced in the file.
+  </Step>
+  <Step title="Query missions by year">
+    Retrieve and print to console all missions that started in a given year, including the spacecraft and destination celestial body.
+  </Step>
+</Steps>
 
-## Need inspiration?
+## Key features
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<CardGroup cols={2}>
+  <Card title="JDBC / MySQL" icon="database">
+    All persistence uses raw JDBC with `PreparedStatement` and the DAO pattern. No ORM required.
+  </Card>
+  <Card title="DAO pattern" icon="layer-group">
+    Clean separation between business logic and data access through DAO interfaces and JDBC implementations.
+  </Card>
+  <Card title="XML processing" icon="file-code">
+    Jackson `XmlMapper` parses ESA operation feeds and applies database updates transactionally.
+  </Card>
+  <Card title="CSV export" icon="file-csv">
+    Configurable separator and header generate pipe-delimited crew reports with a single method call.
+  </Card>
+  <Card title="Properties-based config" icon="gear">
+    All JDBC credentials, file paths, and CSV settings live in `aplicacion.properties` — no hard-coded values.
+  </Card>
+  <Card title="Typed exceptions" icon="triangle-exclamation">
+    `AgenciaEsaException` wraps SQL and I/O errors with an error code and the originating class for precise diagnostics.
+  </Card>
+</CardGroup>
+
+## Data model overview
+
+The application manages five core entities persisted in MySQL:
+
+| Entity | Table | Description |
+|---|---|---|
+| `Mision` | `T_MISION` | A space mission with dates, status, budget, and objective |
+| `Nave` | `T_NAVE` | A spacecraft identified by a code, type, and crew capacity |
+| `CuerpoCeleste` | `T_CUERPO_CELESTE` | A destination body (planet, moon, etc.) with surface gravity |
+| `Tripulante` | `T_TRIPULANTE` | A crew member with ESA ID, specialty, and experience level |
+| `TripulanteMision` | `T_TRIPULANTE_MISION` | Many-to-many link between crew members and missions |
+
+## Project structure
+
+```
+AgenciaESA/
+├── configuracion/
+│   └── aplicacion.properties       # JDBC, CSV, and XML paths
+├── ficheros-datos/
+│   ├── operaciones_esa.xml         # ESA operations feed (input)
+│   └── tripulantes_sinmision.csv   # Crew export output
+├── src/main/java/eu/esa/gemis/
+│   ├── AplicacionAgenciaESA.java   # Entry point + main menu
+│   ├── dao/                        # DAO interfaces
+│   ├── dao/impl/                   # JDBC implementations
+│   ├── excepcion/                  # Custom exception
+│   ├── gestor/                     # JDBC connection + config reader
+│   ├── procesos/                   # CSV and XML processors
+│   └── vo/                         # Value objects (POJOs)
+└── pom.xml
+```

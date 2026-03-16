@@ -1,0 +1,147 @@
+---
+title: 'ProcesadorTripulantesCSV'
+description: 'Reads unassigned crew members from the database and writes them to a pipe-delimited CSV file.'
+keywords: ['csv', 'tripulantes', 'procesador', 'agencia esa', 'eu.esa.gemis.procesos']
+---
+
+# ProcesadorTripulantesCSV
+
+**Package:** `eu.esa.gemis.procesos`
+
+Reads all crew members (`Tripulante`) that have no mission assigned and exports them to a pipe-delimited CSV file. The output path, separator character, and header row are all driven by `GestorFicheroConfiguracion`, so no hard-coded values appear in the class itself.
+
+---
+
+## Fields
+
+### Static fields
+
+<ResponseField name="SEPARADOR_CSV" type="String">
+  Column delimiter used in every data row. Loaded at class-load time from the configuration key `csv.separador`.
+</ResponseField>
+
+<ResponseField name="CABECERA_CSV" type="String">
+  Header row written as the first line of the CSV file. Loaded at class-load time from the configuration key `csv.cabecera`.
+</ResponseField>
+
+### Instance fields
+
+<ResponseField name="rutaFicheroCSV" type="String">
+  Absolute or relative path of the output CSV file. Loaded on construction from the configuration key `ruta.fichero.csv`.
+</ResponseField>
+
+---
+
+## Configuration keys
+
+All values are resolved through `GestorFicheroConfiguracion.obtenerValor(String clave)`.
+
+| Key | Usage |
+|-----|-------|
+| `csv.separador` | Column delimiter (e.g. `\|`) |
+| `csv.cabecera` | Header row text |
+| `ruta.fichero.csv` | Output file path |
+
+Example `configuracion.properties` entries:
+
+```properties
+csv.separador=|
+csv.cabecera=num_tripulante|nombre|apellidos|ident_esa|especialidad|fecha_ingreso_esa
+ruta.fichero.csv=output/tripulantes_sin_mision.csv
+```
+
+---
+
+## Methods
+
+### `almacenarTripulantesSinMisionEnFicheroCSV()`
+
+```java
+public void almacenarTripulantesSinMisionEnFicheroCSV() throws AgenciaEsaException
+```
+
+Exports all crew members with no mission assignment to the configured CSV file.
+
+<Steps>
+  <Step title="Open the output file">
+    Creates a `File` object using `rutaFicheroCSV` and opens it with a `BufferedWriter` via `FileWriter` inside a try-with-resources block, ensuring the writer is always closed.
+  </Step>
+  <Step title="Write the header row">
+    Writes `CABECERA_CSV` as the first line, followed by a newline.
+  </Step>
+  <Step title="Query the database">
+    Instantiates `TripulanteDaoJDBC` (the concrete implementation of `ITripulanteDAO`) and calls `obtenerTripulantesSinMision()`, which returns a `List<Tripulante>`.
+  </Step>
+  <Step title="Write data rows">
+    Iterates over the list and writes one row per crew member using `SEPARADOR_CSV` between each field.
+  </Step>
+  <Step title="Handle I/O errors">
+    Any `IOException` caught in the catch block is printed to standard output. It is **not** re-thrown and does not wrap into `AgenciaEsaException`.
+  </Step>
+</Steps>
+
+#### CSV output format
+
+Each data row contains the following columns in order, separated by `SEPARADOR_CSV`:
+
+| Position | Source field | `Tripulante` getter |
+|----------|-------------|---------------------|
+| 1 | Crew number | `getNumeroTripulante()` |
+| 2 | First name | `getNombre()` |
+| 3 | Surnames | `getApellidos()` |
+| 4 | ESA identifier | `getIdentificadorEsa()` |
+| 5 | Speciality | `getEspecialidad()` |
+| 6 | ESA join date | `getFechaIngresoEsa()` |
+
+Example output (with `|` as separator):
+
+```
+num_tripulante|nombre|apellidos|ident_esa|especialidad|fecha_ingreso_esa
+1001|Ana|García López|ESA-0042|Piloto|2019-03-15
+1002|Carlos|Ruiz Mora|ESA-0091|Ingeniero|2021-07-01
+```
+
+#### Exception behaviour
+
+<Warning>
+  `IOException` is caught and printed via `System.out.println` but is **not** re-thrown. If writing fails (e.g. the path does not exist or the disk is full), the method returns normally without signalling an error to the caller.
+</Warning>
+
+The `throws AgenciaEsaException` declaration propagates any `AgenciaEsaException` raised by `ITripulanteDAO.obtenerTripulantesSinMision()` unchanged to the caller.
+
+#### Source
+
+```java
+public void almacenarTripulantesSinMisionEnFicheroCSV() throws AgenciaEsaException {
+    File ficheroCSV = new File(rutaFicheroCSV);
+    try (BufferedWriter writer = new BufferedWriter(new FileWriter(ficheroCSV))) {
+        writer.write(CABECERA_CSV);
+        writer.newLine();
+        ITripulanteDAO iTripulanteDAO = new TripulanteDaoJDBC();
+        List<Tripulante> listaTripulantesSinMision = iTripulanteDAO.obtenerTripulantesSinMision();
+        for (Tripulante tripulante : listaTripulantesSinMision) {
+            writer.write(
+                tripulante.getNumeroTripulante() + SEPARADOR_CSV +
+                tripulante.getNombre()           + SEPARADOR_CSV +
+                tripulante.getApellidos()        + SEPARADOR_CSV +
+                tripulante.getIdentificadorEsa() + SEPARADOR_CSV +
+                tripulante.getEspecialidad()     + SEPARADOR_CSV +
+                tripulante.getFechaIngresoEsa()
+            );
+            writer.newLine();
+        }
+    } catch (IOException e) {
+        System.out.println("Error E/S: " + e);
+    }
+}
+```
+
+---
+
+## Configuration dependency
+
+`GestorFicheroConfiguracion` must have loaded the properties file before this class is used. Both static fields (`SEPARADOR_CSV`, `CABECERA_CSV`) are initialised at class-load time, so if the configurator has not yet read the file when the class is first referenced, those fields will be `null`.
+
+<Note>
+  Ensure `GestorFicheroConfiguracion` is initialised early in `AplicacionAgenciaESA.main()`, before any processor is instantiated.
+</Note>

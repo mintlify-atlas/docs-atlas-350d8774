@@ -1,0 +1,153 @@
+---
+title: 'Application properties'
+description: 'Reference for configuracion/aplicacion.properties — the central configuration file for AgenciaESA.'
+keywords: ['configuration', 'properties', 'jdbc', 'mysql', 'csv', 'xml']
+---
+
+All runtime settings for AgenciaESA are read from a single properties file:
+
+```
+configuracion/aplicacion.properties
+```
+
+The file is loaded by `GestorFicheroConfiguracion` at startup. Individual values are retrieved on demand by calling `obtenerValor(String clave)`.
+
+## File location
+
+`GestorFicheroConfiguracion` resolves the file path relative to the **working directory** of the JVM process. When you launch the application from the project root with Maven (`mvn exec:java`) or a packaged JAR, the working directory is the project root, so the file must exist at:
+
+```
+<project-root>/configuracion/aplicacion.properties
+```
+
+<Note>
+The file is not loaded from the classpath. It must be present on the filesystem at the resolved path before the application starts.
+</Note>
+
+## Full file content
+
+```properties
+# Configuración de la aplicación AgenciaESA
+
+# JDBC MySQL
+jdbc.url=jdbc:mysql://192.168.1.36:3306/agencia_esa_xxx
+jdbc.usuario=root
+jdbc.password=mysql_123
+
+# Fichero CSV
+ruta.fichero.csv=ficheros-datos/tripulantes_sinmision.csv
+csv.cabecera=num_tripulante|nombre|apellidos|id_esa|especialidad|fecha_ingreso
+csv.separador=|
+
+# Fichero XML Lectura
+ruta.fichero.xml=ficheros-datos/operaciones_esa.xml
+```
+
+## Configuration keys
+
+### Database (JDBC)
+
+<ParamField path="jdbc.url" type="string" required>
+  Full JDBC connection URL for the MySQL database. Must include the host, port, and schema name.
+
+  Example: `jdbc:mysql://192.168.1.36:3306/agencia_esa_xxx`
+
+  Format: `jdbc:mysql://<host>:<port>/<schema>`
+</ParamField>
+
+<ParamField path="jdbc.usuario" type="string" required>
+  MySQL username used to authenticate the connection.
+
+  Example: `root`
+</ParamField>
+
+<ParamField path="jdbc.password" type="string">
+  Password for the MySQL user specified in `jdbc.usuario`. Leave empty for passwordless accounts.
+
+  Example: `mysql_123`
+</ParamField>
+
+### CSV export
+
+<ParamField path="ruta.fichero.csv" type="string" required>
+  File system path (relative to the working directory) where the CSV export of crew members without an active mission is written.
+
+  Default: `ficheros-datos/tripulantes_sinmision.csv`
+</ParamField>
+
+<ParamField path="csv.cabecera" type="string" required>
+  Header row written as the first line of the CSV file. Column names are separated by the character defined in `csv.separador`.
+
+  Default: `num_tripulante|nombre|apellidos|id_esa|especialidad|fecha_ingreso`
+</ParamField>
+
+<ParamField path="csv.separador" type="string" required default="|">
+  Single character used as the column delimiter throughout the CSV file, including the header row.
+
+  Default: `|`
+</ParamField>
+
+### XML input
+
+<ParamField path="ruta.fichero.xml" type="string" required>
+  File system path (relative to the working directory) of the XML operations file that the application parses to apply bulk mission operations.
+
+  Default: `ficheros-datos/operaciones_esa.xml`
+</ParamField>
+
+## How GestorFicheroConfiguracion works
+
+`GestorFicheroConfiguracion.obtenerValor(String clave)` loads `configuracion/aplicacion.properties` using the standard Java `Properties` API and returns the string value associated with the given key. If the key does not exist in the file the method returns `null`.
+
+```java
+// Typical usage inside another component
+String url = GestorFicheroConfiguracion.obtenerValor("jdbc.url");
+```
+
+<Warning>
+If a required key is absent or the properties file cannot be found, the calling component throws an `IllegalStateException` and the application halts. Ensure the file exists and all required keys are present before starting the application.
+</Warning>
+
+## How GestorConexionJDBC uses the properties
+
+`GestorConexionJDBC.obtenerConexion()` reads the three JDBC keys and passes them directly to `DriverManager.getConnection()`:
+
+```java
+public static Connection obtenerConexion() throws SQLException {
+    String url      = GestorFicheroConfiguracion.obtenerValor("jdbc.url");
+    String usuario  = GestorFicheroConfiguracion.obtenerValor("jdbc.usuario");
+    String password = GestorFicheroConfiguracion.obtenerValor("jdbc.password");
+
+    if (url == null || usuario == null) {
+        throw new IllegalStateException(
+            "Propiedades JDBC no configuradas correctamente en application.properties"
+        );
+    }
+
+    return DriverManager.getConnection(url, usuario, password);
+}
+```
+
+A new `Connection` object is returned on every call. Connection pooling is not configured by default; the caller is responsible for closing the connection.
+
+## Error conditions
+
+<AccordionGroup>
+  <Accordion title="IllegalStateException — JDBC properties not configured">
+    Thrown by `GestorConexionJDBC.obtenerConexion()` when `jdbc.url` or `jdbc.usuario` resolves to `null`.
+
+    **Resolution:** Verify that `configuracion/aplicacion.properties` exists in the working directory and that both keys are present and non-empty.
+  </Accordion>
+
+  <Accordion title="SQLException — cannot connect to database">
+    Thrown by `DriverManager.getConnection()` when the URL is syntactically valid but the server is unreachable, the credentials are wrong, or the schema does not exist.
+
+    **Resolution:** Check network connectivity to the MySQL host, confirm the user has the necessary grants, and ensure the target schema has been created. See [Database setup](/configuration/database-setup) for the full DDL.
+  </Accordion>
+
+  <Accordion title="FileNotFoundException — properties file missing">
+    Thrown during property file loading when `configuracion/aplicacion.properties` does not exist at the expected path.
+
+    **Resolution:** Create the file at `<project-root>/configuracion/aplicacion.properties` and populate it with at minimum the JDBC keys.
+  </Accordion>
+</AccordionGroup>

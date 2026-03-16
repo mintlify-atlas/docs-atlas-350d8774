@@ -1,0 +1,188 @@
+---
+title: 'Mision'
+description: 'Value object representing a space mission in the ESA GEMIS system.'
+keywords: ['mision', 'mission', 'value object', 'T_MISION', 'eu.esa.gemis.vo']
+---
+
+# Mision
+
+**Package:** `eu.esa.gemis.vo`  
+**DB table:** `T_MISION`
+
+The `Mision` value object is the central entity in GEMIS. It represents a single ESA space mission and holds references to the spacecraft (`Nave`) and the target celestial body (`CuerpoCeleste`) as nested objects.
+
+<Info>
+  `Mision` is a plain Java bean with no persistence logic of its own. DAO classes handle all SQL interaction against `T_MISION`.
+</Info>
+
+---
+
+## Fields
+
+<ResponseField name="identificador" type="int" required>
+  Auto-generated primary key. Maps to column `ID_MISION` in `T_MISION`.
+</ResponseField>
+
+<ResponseField name="nombre" type="String" required>
+  Human-readable mission name. Maps to `NOMBRE`.
+</ResponseField>
+
+<ResponseField name="nave" type="Nave">
+  The spacecraft assigned to this mission. Populated as a nested `Nave` object by joining `T_NAVE`. See [Nave](/api/vo/nave).
+
+  <Expandable title="Nave properties">
+    <ResponseField name="codigo" type="String">
+      Primary key of the spacecraft.
+    </ResponseField>
+    <ResponseField name="nombre" type="String">
+      Spacecraft name.
+    </ResponseField>
+    <ResponseField name="tipo" type="String">
+      Spacecraft type/class.
+    </ResponseField>
+    <ResponseField name="capacidadTripulacion" type="int">
+      Maximum crew capacity.
+    </ResponseField>
+    <ResponseField name="autonomiaDias" type="short">
+      Operational autonomy in days.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="cuerpoCeleste" type="CuerpoCeleste">
+  The target celestial body for this mission. Populated as a nested `CuerpoCeleste` object by joining `T_CUERPO_CELESTE`. See [CuerpoCeleste](/api/vo/cuerpo-celeste).
+
+  <Expandable title="CuerpoCeleste properties">
+    <ResponseField name="identificador" type="int">
+      Primary key of the celestial body.
+    </ResponseField>
+    <ResponseField name="nombre" type="String">
+      Name of the celestial body.
+    </ResponseField>
+    <ResponseField name="tipo" type="String">
+      Type (e.g. planet, moon, asteroid).
+    </ResponseField>
+    <ResponseField name="gravedadSuperficieMs2" type="double">
+      Surface gravity in m/s².
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="fechaInicio" type="LocalDate">
+  Mission start date. Maps to `FECHA_INICIO`.
+</ResponseField>
+
+<ResponseField name="fechaFinEstimado" type="LocalDate">
+  Estimated end date of the mission. Maps to `FECHA_FIN_ESTIMADO`.
+</ResponseField>
+
+<ResponseField name="fechaFin" type="LocalDate">
+  Actual end date once the mission completes. May be `null` for ongoing missions. Maps to `FECHA_FIN`.
+</ResponseField>
+
+<ResponseField name="estado" type="String">
+  Current mission status (e.g. `PLANIFICADA`, `EN_CURSO`, `FINALIZADA`). Maps to `ESTADO`.
+</ResponseField>
+
+<ResponseField name="objetivoPrincipal" type="String">
+  Free-text description of the primary mission objective. Maps to `OBJETIVO_PRINCIPAL`.
+</ResponseField>
+
+<ResponseField name="presupuestoAsignado" type="int">
+  Allocated budget in euros. Maps to `PRESUPUESTO_ASIGNADO`.
+</ResponseField>
+
+---
+
+## DB column mapping
+
+| Java field | Java type | DB column (`T_MISION`) |
+|---|---|---|
+| `identificador` | `int` | `ID_MISION` (PK) |
+| `nombre` | `String` | `NOMBRE` |
+| `nave` | `Nave` | `CODIGO_NAVE` (FK → `T_NAVE`) |
+| `cuerpoCeleste` | `CuerpoCeleste` | `ID_CUERPO_CELESTE` (FK → `T_CUERPO_CELESTE`) |
+| `fechaInicio` | `LocalDate` | `FECHA_INICIO` |
+| `fechaFinEstimado` | `LocalDate` | `FECHA_FIN_ESTIMADO` |
+| `fechaFin` | `LocalDate` | `FECHA_FIN` |
+| `estado` | `String` | `ESTADO` |
+| `objetivoPrincipal` | `String` | `OBJETIVO_PRINCIPAL` |
+| `presupuestoAsignado` | `int` | `PRESUPUESTO_ASIGNADO` |
+
+---
+
+## Methods
+
+All fields expose a standard getter and setter pair:
+
+| Method | Return type | Description |
+|---|---|---|
+| `getIdentificador()` / `setIdentificador(int)` | `int` / `void` | Mission primary key. |
+| `getNombre()` / `setNombre(String)` | `String` / `void` | Mission name. |
+| `getNave()` / `setNave(Nave)` | `Nave` / `void` | Assigned spacecraft. |
+| `getCuerpoCeleste()` / `setCuerpoCeleste(CuerpoCeleste)` | `CuerpoCeleste` / `void` | Target celestial body. |
+| `getFechaInicio()` / `setFechaInicio(LocalDate)` | `LocalDate` / `void` | Start date. |
+| `getFechaFinEstimado()` / `setFechaFinEstimado(LocalDate)` | `LocalDate` / `void` | Estimated end date. |
+| `getFechaFin()` / `setFechaFin(LocalDate)` | `LocalDate` / `void` | Actual end date. |
+| `getEstado()` / `setEstado(String)` | `String` / `void` | Mission status. |
+| `getObjetivoPrincipal()` / `setObjetivoPrincipal(String)` | `String` / `void` | Primary objective text. |
+| `getPresupuestoAsignado()` / `setPresupuestoAsignado(int)` | `int` / `void` | Assigned budget. |
+
+---
+
+## toString() output
+
+```
+Mision [identificador=1, nombre=Artemis IV, nave=Nave [codigo=NV-01, nombre=Orion, tipo=Capsule, capacidadTripulacion=4, autonomiaDias=365], cuerpoCeleste=CuerpoCeleste [identificador=2, nombre=Luna, tipo=Moon, gravedadSuperficieMs2=1.62], fechaInicio=2026-03-01, fechaFinEstimado=2026-09-01, fechaFin=null, estado=EN_CURSO, objetivoPrincipal=Lunar surface survey, presupuestoAsignado=5000000]
+```
+
+<Note>
+  The `toString()` output includes the full `toString()` of both nested objects (`Nave` and `CuerpoCeleste`), which makes log output verbose. Use individual getters when only specific fields are needed.
+</Note>
+
+---
+
+## Construction and usage example
+
+```java
+import eu.esa.gemis.vo.Mision;
+import eu.esa.gemis.vo.Nave;
+import eu.esa.gemis.vo.CuerpoCeleste;
+import java.time.LocalDate;
+
+// Build the nested Nave object
+Nave nave = new Nave();
+nave.setCodigo("NV-01");
+nave.setNombre("Orion");
+nave.setTipo("Capsule");
+nave.setCapacidadTripulacion(4);
+nave.setAutonomiaDias((short) 365);
+
+// Build the nested CuerpoCeleste object
+CuerpoCeleste luna = new CuerpoCeleste();
+luna.setIdentificador(2);
+luna.setNombre("Luna");
+luna.setTipo("Moon");
+luna.setGravedadSuperficieMs2(1.62);
+
+// Construct the Mision
+Mision mision = new Mision();
+mision.setIdentificador(1);
+mision.setNombre("Artemis IV");
+mision.setNave(nave);
+mision.setCuerpoCeleste(luna);
+mision.setFechaInicio(LocalDate.of(2026, 3, 1));
+mision.setFechaFinEstimado(LocalDate.of(2026, 9, 1));
+mision.setEstado("EN_CURSO");
+mision.setObjetivoPrincipal("Lunar surface survey");
+mision.setPresupuestoAsignado(5_000_000);
+
+// Access nested data
+System.out.println(mision.getNave().getNombre());          // Orion
+System.out.println(mision.getCuerpoCeleste().getNombre()); // Luna
+System.out.println(mision);                                // full toString()
+```
+
+<Tip>
+  DAO query results typically populate `Mision` objects by using a `ResultSet` JOIN across `T_MISION`, `T_NAVE`, and `T_CUERPO_CELESTE`. Construct the inner VOs first, then assign them with the setters shown above.
+</Tip>

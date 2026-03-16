@@ -1,0 +1,242 @@
+---
+title: 'ITripulanteDAO'
+description: 'DAO interface for crew member (Tripulante) persistence operations in the Agencia ESA system.'
+keywords: ['ITripulanteDAO', 'TripulanteDaoJDBC', 'DAO', 'Tripulante', 'Java', 'JDBC']
+---
+
+## Overview
+
+`ITripulanteDAO` defines the persistence contract for `Tripulante` (crew member) entities. It covers retrieval, update, and insertion operations used throughout the astronaut management workflows.
+
+| Property | Value |
+|---|---|
+| Interface | `eu.esa.gemis.dao.ITripulanteDAO` |
+| Implementation | `eu.esa.gemis.dao.impl.TripulanteDaoJDBC` |
+| Checked exception | `eu.esa.gemis.excepcion.AgenciaEsaException` |
+
+---
+
+## Interface source
+
+```java ITripulanteDAO.java
+package eu.esa.gemis.dao;
+
+import java.util.List;
+import eu.esa.gemis.excepcion.AgenciaEsaException;
+import eu.esa.gemis.vo.Tripulante;
+
+public interface ITripulanteDAO {
+    List<Tripulante> obtenerTripulantesSinMision() throws AgenciaEsaException;
+    Tripulante obtenerTripulantePorIdESA(int identificadorESA) throws AgenciaEsaException;
+    void actualizarTripulantePorIdESA(Tripulante tripulante) throws AgenciaEsaException;
+    void insertarTripulante(Tripulante tripulante) throws AgenciaEsaException;
+}
+```
+
+---
+
+## Methods
+
+### `obtenerTripulantesSinMision`
+
+Retrieves all crew members who are not currently assigned to any active mission. Intended for use when selecting candidates for a new mission assignment.
+
+**Signature**
+
+```java
+List<Tripulante> obtenerTripulantesSinMision() throws AgenciaEsaException;
+```
+
+#### Parameters
+
+This method takes no parameters.
+
+#### Return value
+
+A `List<Tripulante>` containing every crew member with no current mission assignment. Returns an empty list when all crew members are assigned.
+
+#### Exceptions
+
+<ResponseField name="AgenciaEsaException" type="checked exception">
+  Thrown on any database failure during query execution.
+  <Expandable title="Error codes">
+    <ResponseField name="ERROR_CONSULTA (2)" type="int">
+      SQL query execution failed.
+    </ResponseField>
+    <ResponseField name="ERROR_GESTION_CONEXION (1)" type="int">
+      Could not obtain or release a database connection.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### `obtenerTripulantePorIdESA`
+
+Retrieves a single crew member by their ESA identifier. This is the primary lookup method when an operation targets a specific astronaut.
+
+**Signature**
+
+```java
+Tripulante obtenerTripulantePorIdESA(int identificadorESA) throws AgenciaEsaException;
+```
+
+#### Parameters
+
+<ParamField path="identificadorESA" type="int" required>
+  The unique ESA numeric identifier for the crew member. Corresponds to the `id_esa` column in the `T_TRIPULANTE` table.
+</ParamField>
+
+#### Return value
+
+The `Tripulante` instance matching the given ESA identifier, fully populated with all column values. Returns `null` if no crew member exists with that identifier.
+
+#### Exceptions
+
+<ResponseField name="AgenciaEsaException" type="checked exception">
+  Thrown on any database failure during query execution.
+  <Expandable title="Error codes">
+    <ResponseField name="ERROR_CONSULTA (2)" type="int">
+      SQL query execution failed.
+    </ResponseField>
+    <ResponseField name="ERROR_GESTION_CONEXION (1)" type="int">
+      Could not obtain or release a database connection.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### `actualizarTripulantePorIdESA`
+
+Updates the persisted state of a crew member identified by their ESA identifier. All mutable fields on the provided `Tripulante` value object are written to the corresponding `T_TRIPULANTE` row.
+
+**Signature**
+
+```java
+void actualizarTripulantePorIdESA(Tripulante tripulante) throws AgenciaEsaException;
+```
+
+#### Parameters
+
+<ParamField path="tripulante" type="Tripulante" required>
+  Value object carrying the ESA identifier (key) and the new field values to persist.
+  <Expandable title="Key field (WHERE clause)">
+    <ResponseField name="identificadorESA" type="int">
+      ESA identifier used in the `WHERE id_esa = ?` clause.
+    </ResponseField>
+  </Expandable>
+  <Expandable title="Updated fields (SET clause)">
+    <ResponseField name="nombre" type="String">
+      Crew member's first name.
+    </ResponseField>
+    <ResponseField name="apellidos" type="String">
+      Crew member's surnames.
+    </ResponseField>
+    <ResponseField name="nacionalidad" type="String">
+      Nationality.
+    </ResponseField>
+    <ResponseField name="especialidad" type="String">
+      Technical speciality.
+    </ResponseField>
+    <ResponseField name="fechaNacimiento" type="Date">
+      Date of birth.
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+#### Return value
+
+`void`. The method completes silently on success.
+
+#### Exceptions
+
+<ResponseField name="AgenciaEsaException" type="checked exception">
+  Thrown on any database failure during the update.
+  <Expandable title="Error codes">
+    <ResponseField name="ERROR_ACTUALIZACION (4)" type="int">
+      The `UPDATE` statement failed.
+    </ResponseField>
+    <ResponseField name="ERROR_GESTION_CONEXION (1)" type="int">
+      Could not obtain or release a database connection.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Warning>
+  If `identificadorESA` does not match any existing row, the update affects zero rows. The JDBC implementation may or may not raise an `AgenciaEsaException` in this case; callers should verify that the crew member exists before calling this method.
+</Warning>
+
+---
+
+### `insertarTripulante`
+
+Persists a new crew member record in the `T_TRIPULANTE` table. All required fields must be set on the `Tripulante` value object before calling this method.
+
+**Signature**
+
+```java
+void insertarTripulante(Tripulante tripulante) throws AgenciaEsaException;
+```
+
+#### Parameters
+
+<ParamField path="tripulante" type="Tripulante" required>
+  Fully populated `Tripulante` value object to insert. The `identificadorESA` field must be unique across the table.
+  <Expandable title="Required fields">
+    <ResponseField name="identificadorESA" type="int">
+      ESA identifier. Must not already exist in `T_TRIPULANTE`.
+    </ResponseField>
+    <ResponseField name="nombre" type="String">
+      Crew member's first name.
+    </ResponseField>
+    <ResponseField name="apellidos" type="String">
+      Crew member's surnames.
+    </ResponseField>
+    <ResponseField name="nacionalidad" type="String">
+      Nationality.
+    </ResponseField>
+    <ResponseField name="especialidad" type="String">
+      Technical speciality.
+    </ResponseField>
+    <ResponseField name="fechaNacimiento" type="Date">
+      Date of birth.
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+#### Return value
+
+`void`. The method completes silently on successful insertion.
+
+#### Exceptions
+
+<ResponseField name="AgenciaEsaException" type="checked exception">
+  Thrown on any database failure during the insert.
+  <Expandable title="Error codes">
+    <ResponseField name="ERROR_INSERCION (3)" type="int">
+      The `INSERT` statement failed (e.g. duplicate key, constraint violation).
+    </ResponseField>
+    <ResponseField name="ERROR_GESTION_CONEXION (1)" type="int">
+      Could not obtain or release a database connection.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Warning>
+  Inserting a `Tripulante` whose `identificadorESA` already exists will cause a primary key constraint violation, surfaced as `AgenciaEsaException` with code `ERROR_INSERCION (3)`.
+</Warning>
+
+---
+
+## Exception reference
+
+All `AgenciaEsaException` error codes relevant to this interface:
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `ERROR_GENERAL` | 0 | Unclassified error |
+| `ERROR_GESTION_CONEXION` | 1 | Connection management failure |
+| `ERROR_CONSULTA` | 2 | Query execution failure |
+| `ERROR_INSERCION` | 3 | Insert execution failure |
+| `ERROR_ACTUALIZACION` | 4 | Update execution failure |

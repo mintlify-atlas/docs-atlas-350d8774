@@ -1,0 +1,110 @@
+---
+title: 'Nave'
+description: 'Value object representing a spacecraft in the ESA GEMIS system.'
+keywords: ['nave', 'spacecraft', 'value object', 'T_NAVE', 'eu.esa.gemis.vo']
+---
+
+# Nave
+
+**Package:** `eu.esa.gemis.vo`  
+**DB table:** `T_NAVE`
+
+The `Nave` value object represents an ESA spacecraft. It is used as a nested object inside [`Mision`](/api/vo/mision) to describe which vehicle is assigned to a given mission.
+
+<Info>
+  `Nave` is a plain Java bean with no persistence logic of its own. DAO classes handle all SQL interaction against `T_NAVE`.
+</Info>
+
+---
+
+## Fields
+
+<ResponseField name="codigo" type="String" required>
+  **Primary key** of the spacecraft record. A string code assigned by ESA operations (e.g. `NV-01`). Maps to `CODIGO` in `T_NAVE`.
+</ResponseField>
+
+<ResponseField name="nombre" type="String" required>
+  Human-readable name of the spacecraft. Maps to `NOMBRE`.
+</ResponseField>
+
+<ResponseField name="tipo" type="String">
+  Spacecraft class or type (e.g. `Capsule`, `Probe`, `Station`). Maps to `TIPO`.
+</ResponseField>
+
+<ResponseField name="capacidadTripulacion" type="int">
+  Maximum number of crew members the spacecraft can carry. Maps to `CAPACIDAD_TRIPULACION`.
+</ResponseField>
+
+<ResponseField name="autonomiaDias" type="short">
+  Number of days the spacecraft can operate independently without resupply. Stored as a Java `short` (16-bit integer, range −32 768 to 32 767) for compact storage. Maps to `AUTONOMIA_DIAS`.
+</ResponseField>
+
+---
+
+## Note on `autonomiaDias` type
+
+<Note>
+  `autonomiaDias` is declared as `short` rather than `int`. Mission durations measured in days fit comfortably within the `short` range (max 32 767 days ≈ 89 years), so the narrower type is used deliberately to reduce heap footprint when many `Nave` objects are held in memory. Always use an explicit cast when assigning a literal: `nave.setAutonomiaDias((short) 365)`.
+</Note>
+
+---
+
+## DB column mapping
+
+| Java field | Java type | DB column (`T_NAVE`) |
+|---|---|---|
+| `codigo` | `String` | `CODIGO` (PK) |
+| `nombre` | `String` | `NOMBRE` |
+| `tipo` | `String` | `TIPO` |
+| `capacidadTripulacion` | `int` | `CAPACIDAD_TRIPULACION` |
+| `autonomiaDias` | `short` | `AUTONOMIA_DIAS` |
+
+---
+
+## Methods
+
+All fields expose a standard getter and setter pair:
+
+| Method | Return type | Description |
+|---|---|---|
+| `getCodigo()` / `setCodigo(String)` | `String` / `void` | Spacecraft primary key code. |
+| `getNombre()` / `setNombre(String)` | `String` / `void` | Spacecraft name. |
+| `getTipo()` / `setTipo(String)` | `String` / `void` | Spacecraft type/class. |
+| `getCapacidadTripulacion()` / `setCapacidadTripulacion(int)` | `int` / `void` | Max crew capacity. |
+| `getAutonomiaDias()` / `setAutonomiaDias(short)` | `short` / `void` | Operational autonomy in days. |
+
+---
+
+## toString() output
+
+```
+Nave [codigo=NV-01, nombre=Orion, tipo=Capsule, capacidadTripulacion=4, autonomiaDias=365]
+```
+
+<Note>
+  Unlike `Mision` and `Tripulante`, the `Nave` `toString()` does **not** append a trailing newline.
+</Note>
+
+---
+
+## Construction and usage example
+
+```java
+import eu.esa.gemis.vo.Nave;
+
+Nave nave = new Nave();
+nave.setCodigo("NV-01");
+nave.setNombre("Orion");
+nave.setTipo("Capsule");
+nave.setCapacidadTripulacion(4);
+nave.setAutonomiaDias((short) 365); // cast required — setter accepts short
+
+System.out.println(nave.getCodigo());           // NV-01
+System.out.println(nave.getAutonomiaDias());    // 365
+System.out.println(nave);
+// Nave [codigo=NV-01, nombre=Orion, tipo=Capsule, capacidadTripulacion=4, autonomiaDias=365]
+```
+
+<Tip>
+  `Nave` objects are typically retrieved from the DB by their `codigo` string key and then injected into a `Mision` via `mision.setNave(nave)`. The `codigo` is also stored as a foreign key column in `T_MISION`.
+</Tip>

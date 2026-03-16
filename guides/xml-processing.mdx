@@ -1,0 +1,139 @@
+---
+title: 'XML operations processing'
+description: 'Parse operaciones_esa.xml to update missions and insert or update crew members in the database.'
+keywords: ['xml', 'operations', 'mission', 'crew', 'jackson', 'xmlmapper', 'insert', 'update']
+---
+
+Operation **2** in the main menu parses `operaciones_esa.xml` and applies two successive passes over its `<mision>` nodes: the first updates mission records, and the second synchronises crew members.
+
+## XML file structure
+
+The operations file has a root element `<operacionesESA>` with metadata attributes and a single `<misiones>` block containing one or more `<mision>` nodes. Each mission embeds a `<tripulacion>` section.
+
+```xml operaciones_esa.xml
+<operacionesESA fecha_generacion="2040-11-12"
+                centro_control_origen="ESOC Darmstadt"
+                version_xml="3.0">
+    <misiones>
+        <mision>
+            <nombre>Reabastecimiento Ares I</nombre>
+            <cod_nave>ESA-TRANS-02</cod_nave>
+            <cuerpo_celeste>Marte</cuerpo_celeste>
+            <fecha_inicio>2034-04-02</fecha_inicio>
+            <fecha_fin_estimada>2034-04-25</fecha_fin_estimada>
+            <estado>En curso</estado>
+            <objetivo>Entrega ampliada de repuestos en Base Ares</objetivo>
+            <presupuesto>18950000</presupuesto>
+            <tripulacion>
+                <!-- Existing crew member — no insert, only assigns role/stress -->
+                <tripulante ident_esa="2001">
+                    <rol>Piloto</rol>
+                    <nivel_estres>2</nivel_estres>
+                </tripulante>
+                <!-- Existing identifier + nuevo_tripulante node → INSERT new row -->
+                <tripulante ident_esa="2101">
+                    <rol>Ingeniero</rol>
+                    <nivel_estres>2</nivel_estres>
+                    <nuevo_tripulante>
+                        <nombre>Elena</nombre>
+                        <apellidos>Markovic</apellidos>
+                        <nivel_experiencia>4</nivel_experiencia>
+                        <especialidad>Robótica Criogénica</especialidad>
+                    </nuevo_tripulante>
+                </tripulante>
+            </tripulacion>
+        </mision>
+    </misiones>
+</operacionesESA>
+```
+
+## Configuration
+
+```properties application.properties
+# Path to the XML operations file
+ruta.fichero.xml=datos/operaciones_esa.xml
+```
+
+## Two-pass processing
+
+`ProcesadorXMLMision.procesarFicheroXMLMisiones()` reads the entire document into a `JsonNode` tree using Jackson's `XmlMapper`, then iterates the node list twice.
+
+```java ProcesadorXMLMision.java
+public void procesarFicheroXMLMisiones() throws AgenciaEsaException {
+    File ficheroXML = new File(rutaFicheroXML);
+    ObjectMapper mapeadorXML = new XmlMapper();
+    JsonNode nodoOperaciones = mapeadorXML.readTree(ficheroXML);
+    JsonNode listaMisiones = nodoOperaciones.get("misiones").get("mision");
+
+    // Pass 1: update mission records
+    for (JsonNode nodoMision : listaMisiones) {
+        realizarTratamientoNodoMision(nodoMision);
+    }
+
+    // Pass 2: insert or update crew members
+    for (JsonNode nodoMision : listaMisiones) {
+        JsonNode nodoTripulacion = nodoMision.get("tripulacion");
+        JsonNode listaTripulantes = nodoTripulacion.get("tripulante");
+        for (JsonNode nodoTripulante : listaTripulantes) {
+            realizarTratamientoNodoTripulante(nodoTripulante);
+        }
+    }
+}
+```
+
+<Info>
+  Separating the two passes guarantees that mission rows exist in `T_MISION` before any crew-member foreign key references are resolved.
+</Info>
+
+### Pass 1 — mission updates
+
+`realizarTratamientoNodoMision` calls `IMisionDAO.actualizarMisionPorNaveCuerpoFecha`, which executes an `UPDATE` matched on the combination of `cod_nave`, `cuerpo_celeste`, and `fecha_inicio`. These three fields together act as a natural key to identify the target row.
+
+Fields updated per mission node: `nombre`, `fecha_fin_estimada`, `estado`, `objetivo`, `presupuesto`.
+
+<Note>
+  If no row matches the `cod_nave + cuerpo_celeste + fecha_inicio` triple, the `UPDATE` affects zero rows and the method returns without error. No insert is performed for unmatched missions.
+</Note>
+
+### Pass 2 — crew member processing
+
+For each `<tripulante>` node, `realizarTratamientoNodoTripulante` applies the following decision logic:
+
+<Steps>
+  <Step title="Look up by ident_esa">
+    The `ident_esa` attribute is read from the node. `ITripulanteDAO` queries `T_TRIPULANTE` to check whether a row with that identifier already exists.
+  </Step>
+  <Step title="nuevo_tripulante present → INSERT">
+    If the node contains a `<nuevo_tripulante>` child element, a new `Tripulante` row is inserted using the nested `<nombre>`, `<apellidos>`, `<nivel_experiencia>`, and `<especialidad>` values together with the `ident_esa` from the parent attribute.
+  </Step>
+  <Step title="Existing tripulante only → UPDATE">
+    If the crew member already exists in the database and no `<nuevo_tripulante>` node is present, the existing row is updated (role and stress level are persisted to the mission assignment).
+  </Step>
+  <Step title="No nuevo_tripulante, member absent → skip">
+    If `ident_esa` is not found in the database and there is no `<nuevo_tripulante>` node, the entry is skipped. No insert is attempted.
+  </Step>
+</Steps>
+
+### Crew member decision matrix
+
+| `ident_esa` exists in DB | `<nuevo_tripulante>` present | Action |
+|---|---|---|
+| Yes | No | UPDATE existing row |
+| No | Yes | INSERT new row |
+| Yes | Yes | INSERT new row (ident_esa is the new identifier) |
+| No | No | Skip — no operation |
+
+## Jackson XmlMapper usage
+
+The project uses `com.fasterxml.jackson.dataformat:jackson-dataformat-xml`. The XML document is parsed into a generic `JsonNode` tree rather than a typed POJO, allowing flexible navigation of optional child elements such as `<nuevo_tripulante>`.
+
+```java
+ObjectMapper mapeadorXML = new XmlMapper();
+JsonNode nodoOperaciones = mapeadorXML.readTree(ficheroXML);
+```
+
+Node presence is tested with `JsonNode.has("nuevo_tripulante")` before attempting to read the child fields.
+
+<Warning>
+  If `operaciones_esa.xml` is malformed or missing, Jackson throws a checked exception that propagates as `AgenciaEsaException`. Verify the file path in `ruta.fichero.xml` and ensure the file is well-formed XML before running operation 2.
+</Warning>

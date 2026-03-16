@@ -1,0 +1,116 @@
+---
+title: 'CuerpoCeleste'
+description: 'Value object representing a celestial body (planet, moon, asteroid, etc.) in the ESA GEMIS system.'
+keywords: ['cuerpo celeste', 'celestial body', 'planet', 'moon', 'value object', 'T_CUERPO_CELESTE', 'eu.esa.gemis.vo']
+---
+
+# CuerpoCeleste
+
+**Package:** `eu.esa.gemis.vo`  
+**DB table:** `T_CUERPO_CELESTE`
+
+The `CuerpoCeleste` value object represents a celestial body (planet, moon, asteroid, comet, etc.) that can serve as the destination of an ESA mission. It is used as a nested object inside [`Mision`](/api/vo/mision).
+
+<Info>
+  `CuerpoCeleste` is a plain Java bean with no persistence logic of its own. DAO classes handle all SQL interaction against `T_CUERPO_CELESTE`.
+</Info>
+
+---
+
+## Fields
+
+<ResponseField name="identificador" type="int" required>
+  Auto-generated **primary key** for the `T_CUERPO_CELESTE` table. Maps to `ID_CUERPO_CELESTE`.
+</ResponseField>
+
+<ResponseField name="nombre" type="String" required>
+  Name of the celestial body (e.g. `Luna`, `Marte`, `Europa`). Maps to `NOMBRE`.
+
+  <Note>
+    SQL queries that look up a celestial body by name use a `WHERE NOMBRE = ?` clause with this field as the bind parameter. The name must match exactly (case-sensitive, depending on DB collation).
+  </Note>
+</ResponseField>
+
+<ResponseField name="tipo" type="String">
+  Category of the celestial body. Common values include `Planeta`, `Luna`, `Asteroide`, `Cometa`. Maps to `TIPO`.
+</ResponseField>
+
+<ResponseField name="gravedadSuperficieMs2" type="double">
+  Surface gravity in metres per second squared (m/s²). Stored as a 64-bit IEEE 754 `double` to preserve scientific precision. Maps to `GRAVEDAD_SUPERFICIE_MS2`.
+</ResponseField>
+
+---
+
+## Lookup by name in SQL queries
+
+<Note>
+  Several DAO methods retrieve a `CuerpoCeleste` by its `nombre` rather than by its numeric `identificador`. This is because mission planners refer to destinations by name in the UI. The typical SQL pattern is:
+
+  ```java
+  String sql = "SELECT * FROM T_CUERPO_CELESTE WHERE NOMBRE = ?";
+  PreparedStatement ps = conn.prepareStatement(sql);
+  ps.setString(1, cuerpoCeleste.getNombre());
+  ```
+
+  Ensure names are stored consistently in the database to avoid failed lookups caused by capitalisation differences.
+</Note>
+
+---
+
+## DB column mapping
+
+| Java field | Java type | DB column (`T_CUERPO_CELESTE`) |
+|---|---|---|
+| `identificador` | `int` | `ID_CUERPO_CELESTE` (PK) |
+| `nombre` | `String` | `NOMBRE` |
+| `tipo` | `String` | `TIPO` |
+| `gravedadSuperficieMs2` | `double` | `GRAVEDAD_SUPERFICIE_MS2` |
+
+---
+
+## Methods
+
+All fields expose a standard getter and setter pair:
+
+| Method | Return type | Description |
+|---|---|---|
+| `getIdentificador()` / `setIdentificador(int)` | `int` / `void` | DB primary key. |
+| `getNombre()` / `setNombre(String)` | `String` / `void` | Celestial body name. |
+| `getTipo()` / `setTipo(String)` | `String` / `void` | Body category. |
+| `getGravedadSuperficieMs2()` / `setGravedadSuperficieMs2(double)` | `double` / `void` | Surface gravity in m/s². |
+
+---
+
+## toString() output
+
+```
+CuerpoCeleste [identificador=3, nombre=Marte, tipo=Planeta, gravedadSuperficieMs2=3.72]
+```
+
+<Note>
+  Like `Nave`, the `CuerpoCeleste` `toString()` does **not** append a trailing newline. When this object appears nested inside a `Mision.toString()`, its output is embedded inline.
+</Note>
+
+---
+
+## Construction and usage example
+
+```java
+import eu.esa.gemis.vo.CuerpoCeleste;
+
+CuerpoCeleste marte = new CuerpoCeleste();
+marte.setIdentificador(3);
+marte.setNombre("Marte");
+marte.setTipo("Planeta");
+marte.setGravedadSuperficieMs2(3.72);
+
+// Access individual properties
+System.out.println(marte.getNombre());               // Marte
+System.out.println(marte.getGravedadSuperficieMs2()); // 3.72
+System.out.println(marte);
+// CuerpoCeleste [identificador=3, nombre=Marte, tipo=Planeta, gravedadSuperficieMs2=3.72]
+```
+
+<Tip>
+  When a `CuerpoCeleste` is used as the target of a `Mision`, set it via `mision.setCuerpoCeleste(cuerpoCeleste)`. The DAO will persist the relationship using the `ID_CUERPO_CELESTE` foreign key in `T_MISION`.
+</Tip>

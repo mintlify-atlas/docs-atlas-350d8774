@@ -1,0 +1,147 @@
+---
+title: 'AgenciaEsaException'
+description: 'Application-level checked exception that wraps lower-level errors with an error code and the originating class.'
+keywords: ['excepcion', 'exception', 'error', 'agencia esa', 'eu.esa.gemis.excepcion']
+---
+
+# AgenciaEsaException
+
+**Package:** `eu.esa.gemis.excepcion`  
+**Extends:** `java.lang.Exception`
+
+The single checked exception used throughout the Agencia ESA application. It wraps lower-level exceptions (most commonly `SQLException`) and enriches them with a numeric error code and a reference to the class where the error originated, enabling consistent error reporting in `AplicacionAgenciaESA.main()`.
+
+---
+
+## Error code constants
+
+All constants are `public static final int` fields declared on the class.
+
+| Constant | Value | Meaning |
+|----------|-------|---------|
+| `ERROR_GENERAL` | `0` | Unclassified error. Used when none of the specific codes apply. |
+| `ERROR_GESTION_CONEXION` | `1` | Failure while obtaining or closing a database connection. |
+| `ERROR_CONSULTA` | `2` | Error during a SELECT / read query. |
+| `ERROR_INSERCION` | `3` | Error during an INSERT operation. |
+| `ERROR_ACTUALIZACION` | `4` | Error during an UPDATE operation. |
+| `ERROR_BORRADO` | `5` | Error during a DELETE operation. |
+
+---
+
+## Fields
+
+<ResponseField name="codigoError" type="int">
+  Numeric code indicating the category of the error. Should be one of the class constants above.
+</ResponseField>
+
+<ResponseField name="claseOrigen" type="Class<?>">
+  The `Class` object of the component that caught the original exception and created this `AgenciaEsaException`. Used in the main error message to identify where the failure occurred.
+</ResponseField>
+
+<ResponseField name="serialVersionUID" type="long">
+  Standard serialisation UID. Fixed value `1L`.
+</ResponseField>
+
+---
+
+## Constructor
+
+```java
+public AgenciaEsaException(Throwable error, Class<?> claseOrigen, int codError)
+```
+
+<ParamField path="error" type="Throwable" required>
+  The original exception to wrap. Passed to `super(error)` so the full cause chain is preserved and visible in stack traces.
+</ParamField>
+
+<ParamField path="claseOrigen" type="Class<?>" required>
+  The class in which the error was caught. Pass `MiClase.class` or `this.getClass()` at the throw site.
+</ParamField>
+
+<ParamField path="codError" type="int" required>
+  One of the `ERROR_*` constants defined on this class. Stored in `codigoError`.
+</ParamField>
+
+#### Usage example
+
+```java
+try {
+    conexion = DriverManager.getConnection(url, user, password);
+} catch (SQLException e) {
+    throw new AgenciaEsaException(e, GestorConexionBBDD.class, AgenciaEsaException.ERROR_GESTION_CONEXION);
+}
+```
+
+---
+
+## Getters and setters
+
+| Method | Return type | Description |
+|--------|-------------|-------------|
+| `getCodigoError()` | `int` | Returns the error code. |
+| `setCodigoError(int codigoError)` | `void` | Sets the error code. |
+| `getClaseOrigen()` | `Class<?>` | Returns the originating class. |
+| `setClaseOrigen(Class<?> claseOrigen)` | `void` | Sets the originating class. |
+
+---
+
+## How it is handled in `AplicacionAgenciaESA.main()`
+
+`AgenciaEsaException` propagates up the call stack to the top-level `main` method, where a single `catch` block handles all variants using a `switch` on `getCodigoError()`.
+
+```java
+} catch (AgenciaEsaException e) {
+    String mensajeError = "Error en la clase %s al realizar una operación de %s";
+    String operacion = "Operación desconocida";
+    int codigoError = e.getCodigoError();
+    switch (codigoError) {
+        case AgenciaEsaException.ERROR_GESTION_CONEXION: operacion = "Gestión de Conexión"; break;
+        case AgenciaEsaException.ERROR_CONSULTA:        operacion = "Consulta";             break;
+        case AgenciaEsaException.ERROR_INSERCION:       operacion = "Inserción";            break;
+        case AgenciaEsaException.ERROR_BORRADO:         operacion = "Borrado";              break;
+        case AgenciaEsaException.ERROR_ACTUALIZACION:   operacion = "Actualización";        break;
+    }
+    mensajeError = String.format(mensajeError, e.getClaseOrigen().getName(), operacion);
+    System.out.println(mensajeError);
+    e.printStackTrace();
+}
+```
+
+<Note>
+  `ERROR_GENERAL` (code `0`) has no explicit `case` in the switch, so it falls through to the default value `"Operación desconocida"`.
+</Note>
+
+The resulting console output follows the pattern:
+
+```
+Error en la clase eu.esa.gemis.dao.jdbc.TripulanteDaoJDBC al realizar una operación de Consulta
+```
+
+followed by the full stack trace from `e.printStackTrace()`.
+
+---
+
+## Source
+
+```java
+public class AgenciaEsaException extends Exception {
+    private static final long serialVersionUID = 1L;
+    private int codigoError;
+    private Class<?> claseOrigen;
+
+    public static final int ERROR_GENERAL          = 0;
+    public static final int ERROR_GESTION_CONEXION = 1;
+    public static final int ERROR_CONSULTA         = 2;
+    public static final int ERROR_INSERCION        = 3;
+    public static final int ERROR_ACTUALIZACION    = 4;
+    public static final int ERROR_BORRADO          = 5;
+
+    public AgenciaEsaException(Throwable error, Class<?> claseOrigen, int codError) {
+        super(error);
+        this.claseOrigen = claseOrigen;
+        this.codigoError = codError;
+    }
+
+    // getters and setters
+}
+```
