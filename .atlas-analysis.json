@@ -1,0 +1,96 @@
+{
+  "projectType": "data-platform",
+  "projectName": "Agencia ESA",
+  "projectDescription": "A Java console application for managing ESA space agency operations, including mission data, crew assignments, and data import/export via JDBC, CSV, and XML.",
+  "theme": "sequoia",
+  "primaryColor": "#003087",
+  "lightColor": "#4A90D9",
+  "darkColor": "#001A52",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Architecture",
+            "pages": ["architecture/overview", "architecture/data-model"]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "guides/csv-export",
+              "guides/xml-processing",
+              "guides/mission-queries"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": ["configuration/application-properties", "configuration/database-setup"]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "DAO Interfaces",
+            "pages": [
+              "api/dao/imision-dao",
+              "api/dao/itripulante-dao",
+              "api/dao/inave-dao",
+              "api/dao/icuerpo-celeste-dao"
+            ]
+          },
+          {
+            "group": "Value Objects",
+            "pages": [
+              "api/vo/mision",
+              "api/vo/tripulante",
+              "api/vo/nave",
+              "api/vo/cuerpo-celeste"
+            ]
+          },
+          {
+            "group": "Processors",
+            "pages": [
+              "api/procesos/procesador-tripulantes-csv",
+              "api/procesos/procesador-xml-mision"
+            ]
+          },
+          {
+            "group": "Exceptions",
+            "pages": ["api/excepcion/agencia-esa-exception"]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Console-driven menu for selecting operations",
+    "Export unassigned crew members to a CSV file",
+    "Process XML mission operations files and update database records",
+    "Query and display missions initiated in a given year",
+    "JDBC connectivity to MySQL with configurable properties",
+    "DAO pattern with JDBC implementations for Missions, Crew, Ships, and Celestial Bodies",
+    "Custom exception handling with error codes and originating class",
+    "Jackson XML mapper for parsing ESA operation XML feeds"
+  ],
+  "publicApiSurface": [
+    "AplicacionAgenciaESA.main(String[] args)",
+    "AplicacionAgenciaESA.ejecutarFuncionalidades(String operacion)",
+    "IMisionDAO.obtenerMisionesIniciadasEnAnyo(int anyo)",
+    "IMisionDAO.actualizarMisionPorNaveCuerpoFecha(Mision mision)",
+    "ITripulanteDAO.obtenerTripulantesSinMision()",
+    "ITripulanteDAO.obtenerTripulantePorIdESA(int identificadorESA)",
+    "ITripulanteDAO.actualizarTripulantePorIdESA(Tripulante tripulante)",
+    "ITripulanteDAO.insertarTripulante(Tripulante tripulante)",
+    "ProcesadorTripulantesCSV.almacenarTripulantesSinMisionEnFicheroCSV()",
+    "ProcesadorXMLMision.procesarFicheroXMLMisiones()",
+    "GestorConexionJDBC.obtenerConexion()",
+    "GestorFicheroConfiguracion.obtenerValor(String clave)"
+  ]
+}
